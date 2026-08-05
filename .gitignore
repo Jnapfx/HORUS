@@ -1,0 +1,28 @@
+# Operator configuration — contains the home base address and credentials.
+# Never commit. See DEC-035.
+config/local.json
+config/*.local.json
+
+# Credentials and secrets
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+token.json
+
+# Cached external responses — may be large, and are reproducible evidence
+# tied to one machine rather than shared source. See charter section 14.
+cache/
+data/raw/
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~

@@ -1,0 +1,40 @@
+{
+  "_comment": "Copy this file to local.json and fill in real values. local.json is excluded from version control and must never be committed — see DEC-035.",
+
+  "operator": {
+    "name": "",
+    "email": ""
+  },
+
+  "home_base": {
+    "_comment": "Origin for all proximity measurement (DEC-016). Required before any search can be ranked.",
+    "address": "",
+    "city": "",
+    "state": "",
+    "postal_code": ""
+  },
+
+  "search_defaults": {
+    "_comment": "DEC-032. Lowered from 10 and 100 to fit the SerpApi free tier.",
+    "target_qualified": 5,
+    "max_examined": 60
+  },
+
+  "credentials": {
+    "_comment": "Never commit real keys. Gmail scope must be draft-creation only, never send — DEC-028.",
+    "serpapi_key": "",
+    "pagespeed_api_key": "",
+    "gmail_oauth_client": ""
+  },
+
+  "deployment": {
+    "_comment": "DEC-022. Provisional; a HORUS domain is expected later.",
+    "pages_project": "horus-demos",
+    "base_url": "https://horus-demos.pages.dev"
+  },
+
+  "model_versions": {
+    "reputation": "reputation-scoring-v1",
+    "web_opportunity": "web-opportunity-v2"
+  }
+}

@@ -1,0 +1,44 @@
+# Design References
+
+## Status
+
+No visual direction has been approved yet.
+
+Two constraints are now fixed. HORUS V1 is an application with a visual interface and persistent state, not a command-line tool (DEC-029). It serves a single operator on a single machine, so there are no accounts, roles, or sharing to design for (DEC-003).
+
+Note that HORUS produces two distinct kinds of interface, and they must not be confused:
+
+- **The operator interface** — the six views listed in charter section 18. Seen only by the founder. Optimized for judgment and evidence, not for persuasion.
+- **The demonstration websites** — seen by prospective clients, and the product HORUS is selling. Governed by charter section 15 and DEC-023 through DEC-025.
+
+A reference useful for one is not automatically useful for the other.
+
+## How to document references
+
+Each reference must explain what should be learned or adopted from it. A reference must not be treated as an instruction to copy an entire product.
+
+| Reference | Useful element | What to avoid | Status |
+| --- | --- | --- | --- |
+| To be defined | — | — | Pending |
+
+## Provisional principles
+
+- Prioritize clarity over decoration.
+- Show loading, error, empty, and success states.
+- Avoid irreversible actions without confirmation.
+- Keep the process status and next step visible.
+- Validate accessibility and responsive behavior once an interface exists.
+
+## Provisional principles specific to demonstrations
+
+- Show only what the evidence supports. Empty is better than invented (DEC-005, DEC-025).
+- The concept-demonstration notice must be visible without being the first thing that dominates the page.
+- Mobile rendering is the priority, since the demonstration's argument is that the prospect's current site fails there.
+
+## Pending decisions
+
+- Interface type: **decided** — visual application with persistent state (DEC-029).
+- Priority devices: operator interface targets the founder's laptop. Demonstrations are mobile-first. Beyond that, undecided.
+- Visual identity: to be defined. HORUS has no brand, colours, or typography yet.
+- Accessibility requirements: to be defined.
+- Whether demonstrations share a common template or are individually styled per prospect: to be defined.
