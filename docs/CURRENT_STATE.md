@@ -6,15 +6,15 @@ Last updated: 2026-08-05
 
 HORUS is a company being founded. HORUS V1 is the first internal operating system built for it, used by the founder to acquire HORUS's first client.
 
-The repository is clean and contains documentation only. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md` across eighteen sections, with thirty-one recorded decisions. No implementation has been authorized and no repository history has been created.
+The repository contains documentation and locally cached calibration evidence only. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; no application code, implementation architecture, or repository history has been created.
 
-Every threshold in both scoring models was reasoned from principle. Nothing has been tested against a real business.
+Thirty real businesses have now calibrated the models. The operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged; the remaining unvalidated assumptions are recorded below rather than treated as settled.
 
 ## Active phase
 
 **Phase 0 — Definition: complete and approved** by Javier Napoles on 2026-08-05. Evidence: [`checkpoints/2026-08-05_phase-0-definition.md`](checkpoints/2026-08-05_phase-0-definition.md).
 
-**Phase 1 — Calibration: authorized, not started.**
+**Phase 1 — Calibration: complete and approved** by Javier Napoles on 2026-08-05. Evidence: [`checkpoints/2026-08-05_phase-1-calibration.md`](checkpoints/2026-08-05_phase-1-calibration.md).
 
 Objective: score 30–50 real businesses in Stamford and Norwalk, ground the thresholds in observed data, and close the three remaining charter questions.
 
@@ -60,36 +60,52 @@ Phase 1 was inserted ahead of functional design because both scoring models were
 - [x] Sign the charter — approved by Javier Napoles, 2026-08-05, first authorized phase: Phase 1.
 - [x] Set the home base in Stamford CT, stored outside version control (DEC-035).
 - [x] Initialize the Git repository with a `.gitignore` protecting the operator configuration.
+- [x] Complete Phase 1 calibration and retain both scoring-model versions after operator review.
 
-## In progress
+## Phase 1 evidence
 
-**Phase 1 — Calibration, authorized.** Not yet started.
+**Phase 1 — Calibration, complete.**
+
+The controlled calibration retrieval is underway across restaurants in Stamford, plumbing in Stamford, and landscaping in Norwalk. Restaurant discovery returned 60 rows representing 58 unique businesses; 37 passed G1/G2. Plumbing returned 13 G1/G2 survivors, of which 8 have a verified Stamford address; one is in Greenwich and four lack a verifiable address. Landscaping returned 10 G1/G2 survivors, of which 9 have a verified Norwalk address; one is in Wilton. The selected calibration set has 30 businesses: 13 restaurants stratified by review volume, 8 plumbers, and 9 landscapers.
+
+Every selected business has cached raw candidate and initial-review responses. Thirty of the review histories have been paginated as needed through up to three pages: 21 cross the 365-day boundary, one has no further page and is complete within the data available, and 8 remain `partial_data` with a further page available. A test history jumped from June 2026 to February 2024 on its second page, so a pagination gap is never interpreted as proof that reviews are absent. The current decision is to stop before further pagination and assess the cost pattern. Raw responses and HTTP headers are cached locally outside version control.
+
+Cost reconciliation, 2026-08-05: the SerpApi account balance is the billing source of truth and reports 159 of 250 free searches remaining; calibration has therefore consumed 91 credits (36.4% of the monthly allowance). The raw cache contains 92 successful payloads and 23 invalid payloads, so a raw-success count must not be treated as a debit ledger; the invalid pagination requests did not consume a credit. Thirty-two successful payloads are page-2 or page-3 review continuations. Completing the next available page for each of the 8 partial histories is bounded at 8 additional credits, but is not needed to preserve the current conservative lower-bound scores and will not be spent without an explicit decision. The 91-credit observed calibration is within DEC-032's 100–155 one-time calibration allowance; it does not validate the separate ~48-credit estimate for a normal five-prospect run because this exercise deliberately retrieved 30 businesses across three categories and included diagnostic requests.
+
+A provisional reputation calculation under `reputation-scoring-v1` is complete, without changing any parameter. Of the 22 complete histories, 8 fail G3 on complete data and are auto-rejects; 14 pass G3, of which 6 score at least 70. Their score range is 49.5–85.1, with a median of 67.0. The 8 partial histories all already prove G3; scored conservatively with Factor 4 at zero and Factor 5 as `longevity_unknown`, two have a lower bound at or above 70. These results are calibration evidence, not final prospect qualification or a threshold decision.
+
+Review-volume saturation check: the selected listings span 28–6,326 published reviews; 12 have fewer than 100 reviews, 6 have 100–399, and 12 are at or above the 400-review Factor 2 plateau. The boundary is represented by Tuff Lawn (314 reviews, 22.8 Factor-2 points), CINCO DE MAYO (392, 24.8), and Teed and Brown (435, 25.0), showing the logarithmic curve reaches the plateau smoothly rather than creating a large boundary jump. The many plateaued businesses confirm that volume beyond 400 should not be treated as a proxy for commercial maturity; the existing operator-flag treatment remains appropriate. This sample alone does not justify changing the 400-review parameter or creating a new model version.
+
+Factor-4 floor check: 23 of the 30 selected businesses have at least five retrieved trailing-year reviews and can receive a consistency score. Fourteen receive the full 15 points, 9 receive a reduction for a negative delta, and 7 do not meet the input minimum. The full-credit floor is therefore common but not automatic in the observed set. The reduced cases include CINCO DE MAYO (2.4 Factor-4 points), Wonder Stamford (1.5), Teff (5.2), and Mecha Noodle Bar (8.8); this shows that measured decline is already capable of materially restraining otherwise strong listings. The evidence does not show that Factor 4 systematically makes the reputation gate too easy, so no parameter change is justified yet.
+
+Manual boundary review, 2026-08-05: the operator would approach **CINCO DE MAYO** (68.3, complete data) and **United Sewer & Water** (65.6, complete data), but would not approach **Tuff Lawn** (73.6, complete data), **Mashed Burgers** (68.3, partial), **Barcelona Wine Bar** (65.4, complete data), or **FAIRCONN Plumbing** (65.0, partial). The stated reasoning: CINCO DE MAYO has a Wix site that is not responsive and a poor-quality logo; United has a poor design despite being responsive and offering a chatbot; Tuff Lawn appears to be a more consolidated company. In this small review, the 70-point threshold creates two false negatives and one false positive. The first two rationales are web-opportunity signals rather than reasons to weaken reputation qualification; the third is a judgment-dependent maturity signal, so it belongs as an operator flag rather than an auto-reject. This is evidence to examine the threshold and factor behavior; it is not sufficient to change a versioned model without a broader review and explicit decision.
+
+Additional manual calibration review, 2026-08-05: the operator agrees that **TwoGen Landscaping** and **JNR Plumbing** should not be approached despite their stronger model signals; both present mature, complete local-service websites and are poor web-opportunity cases. **A Plus Ornamental & Turf Specialists** is retained as a `maybe`: its site is functional but has weaker copy quality, 46 reviews, and mobile performance 62. **LT Landscaping & Masonry** is not an approach candidate: it has no website URL in the listing but its weaker reputation evidence does not make absence of a site sufficient reason to pursue it. This supports the intended separation: web opportunity ranks reputation-qualified candidates, while commercial maturity is an operator judgment and a no-site state does not override weak qualification.
+
+Direct site inspection adds evidence to the boundary review. CINCO DE MAYO is publicly hosted on a Wix subdomain and displays Wix branding; its visible phone-number link routes to a Google search rather than `tel:`, so it is a broken contact path under Factor 3. The operator reports that the site is not responsive. United presents working `tel:` links, service descriptions, a service-scheduling CTA, and a chat widget, so its opportunity is visual rather than a missing-contact-path case. Its retained COVID-safety link is a possible dated-content indicator, but not enough to score obsolete appearance on its own.
+
+PageSpeed check, 2026-08-05: the initial unauthenticated mobile request returned HTTP 429 because the default consumer has a daily quota of zero. PageSpeed Insights was then enabled in the HORUS Google Cloud project and a locally stored key was created with an API restriction to PageSpeed Insights only. The fixed mobile Lighthouse responses and headers are cached locally. CINCO DE MAYO scores 84 performance (FCP 2.41 s, LCP 4.02 s, TBT 0 ms, CLS 0); United scores 61 (FCP 3.01 s, LCP 14.48 s, TBT 286 ms, CLS 0.00004). This independently supports a substantial performance opportunity for United and lets Factor 4 and the Lighthouse-derived portion of Factor 1 be evaluated.
+
+The complete PageSpeed pass covers 28 of 29 public website URLs in the 30-business calibration set: valid mobile performance scores range from 14 to 87, with a median of 60.5; 13 are below 60 and 16 have LCP above 10 seconds. LT Landscaping & Masonry has no website URL in its discovery record, while Wonder Stamford returned no PageSpeed response after two attempts with a 120-second cap, so neither receives an invented performance score. Repeated runs can vary materially (EarlyGreen measured 59 and 51 on separate runs), therefore these are lab-run calibration evidence rather than stable production claims. The results reinforce the need to keep business maturity as an operator flag separate from web opportunity: Tuff Lawn appears commercially consolidated but measured 21 performance, LCP 25.2 s, and CLS 0.92.
 
 ## Next
 
-1. **Obtain a SerpApi free-tier key** and place it in `config/local.json`. The only remaining prerequisite.
-2. **Make the first commit.** The repository is initialized but has no history yet; awaiting authorization.
-3. **Run the first retrieval** — one category in Stamford, `MAX_EXAMINED` 60, to measure real credit consumption against the ~48 estimate before committing to a full calibration set.
-4. **Retrieve and score 30–50 businesses** across two or three categories, then set thresholds from what is observed.
-
-**Phase 1 does not authorize contacting anyone.** Calibration retrieves and scores only. No demonstration is published and no outreach is drafted; the first real contact belongs to Phase 5 and requires its own approvals at both gates of DEC-004.
+**Phase 2 — Functional Design** is the recommended next step, subject to operator authorization. It may specify workflow behavior and interface views, but does not authorize implementation, publication, or outreach.
 
 ## Blockers
 
-**None.** The charter is signed, the home base is set, and Phase 1 is authorized.
+**None for Phase 1.** Phase 2 requires a separate operator authorization.
 
-The only remaining prerequisite is a SerpApi free-tier key, needed to execute a retrieval rather than to authorize the phase.
-
-## Known weaknesses carried into Phase 1
+## Known limitations carried forward
 
 These do not block starting. They are what calibration exists to resolve, and they should be watched deliberately rather than discovered by surprise.
 
 **Untested numbers**
 
-- The 70-point reputation threshold, the 400-review saturation point, and Factor 4 awarding full credit for merely holding steady — the known weak point in the score floor (DEC-007).
-- `NO_SITE_BASE` at 50 and `SOCIAL_ONLY_BASE` at 60: a reasoned commercial ordering, never observed (DEC-033).
-- The 5 / 15 / 30-mile proximity bands, and whether distance should be driving distance or travel time.
-- The ~48-credit per-search estimate, derived from documentation rather than measured.
+- The 70-point threshold, 400-review saturation point, and Factor-4 floor were tested in one representative calibration set and retained, not proven universally correct (DEC-007).
+- `NO_SITE_BASE` at 50 was observed once; `SOCIAL_ONLY_BASE` at 60 remains unobserved (DEC-033).
+- The 5 / 15 / 30-mile driving bands, and whether distance should eventually yield to travel time.
+- The ~48-credit estimate for a normal five-prospect run remains unmeasured; the 91-credit calibration was deliberately broader and is not comparable.
 - Whether proximity-first ranking costs more in response rate than it gains in convenience (DEC-030).
 
 **Undefined capabilities**

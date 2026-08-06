@@ -19,24 +19,25 @@ Outcome: a concise, approved V1 specification exists.
 
 Evidence: [`checkpoints/2026-08-05_phase-0-definition.md`](checkpoints/2026-08-05_phase-0-definition.md).
 
-## Phase 1 — Calibration
+## Phase 1 — Calibration · complete with deferred validation
 
 Outcome: the scoring models have met real businesses, and their thresholds are grounded rather than guessed.
 
 This phase exists because Phase 0 produced `reputation-scoring-v1` and `web-opportunity-v2` without scoring a single business. Designing an interface around numbers that may be wrong would build the wrong thing carefully.
 
-- [ ] Retrieve 30–50 representative businesses from Stamford and Norwalk across two or three categories.
-- [ ] Cache all raw responses (DEC-020), so rescoring costs nothing thereafter.
-- [ ] Measure actual credit consumption against the section 13.3 estimate.
-- [ ] Score the set and inspect the distribution: how many pass the gates, how many clear 70, where the boundary cases fall.
-- [ ] Test the known weak points — the 70 threshold, the 400-review saturation, Factor 4's full-credit floor, the 5/15/30-mile bands.
-- [ ] Review each qualified business by eye and record where the model disagrees with judgment.
-- [ ] Test the web-presence ordering of DEC-033 — `NO_SITE_BASE` 50 and `SOCIAL_ONLY_BASE` 60 are reasoned, not observed.
-- [ ] Test Factor 5 for false positives, where content exists somewhere HORUS did not look.
+- [x] Retrieve 30 representative businesses from Stamford and Norwalk across three categories.
+- [x] Cache all raw responses (DEC-020), so rescoring costs nothing thereafter.
+- [x] Measure actual credit consumption and reconcile it against the account balance.
+- [x] Score the set and inspect the distribution, gate outcomes, and boundary cases.
+- [x] Test the 70 threshold, 400-review saturation, and Factor 4's full-credit floor.
+- [x] Review representative qualified and boundary businesses by eye, recording model disagreement and operator judgment.
+- [ ] Validate the 5/15/30-mile driving bands, `SOCIAL_ONLY_BASE`, and Factor-5 false positives in later real use; they were not represented or measurable without a routing capability in this calibration set.
 
 **Prerequisites:** the home base must be set (charter 8.1) and a SerpApi free-tier key obtained.
 
-**Exit criterion:** thresholds are set from observed data, and any parameter change is recorded as a new model version rather than an edit to an existing one.
+**Exit criterion:** met. After review of the observed data, the operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged. The untested items are explicit limitations, not silently accepted assumptions.
+
+Evidence: [`checkpoints/2026-08-05_phase-1-calibration.md`](checkpoints/2026-08-05_phase-1-calibration.md).
 
 ## Phase 2 — Functional Design
 
