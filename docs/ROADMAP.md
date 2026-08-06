@@ -80,17 +80,20 @@ Outcome: the operator can complete the primary workflow from start to finish.
 
 **Exit criterion:** met and approved on 2026-08-06.
 
-## Phase 5 — First Real Use
+## Phase 5 — First Real Use · in progress
 
 Outcome: one qualified prospect, one live demonstration, one approved outreach, one tracked opportunity.
 
 This is the success criterion of charter section 5, and the reason the project exists.
 
-- [ ] Run a real search in Stamford or Norwalk.
-- [ ] Select a prospect, review its evidence, and approve a demonstration.
-- [ ] Publish, approve the outreach, and send it.
+- [x] Run a real 20-result landscaping search in Stamford, Connecticut, with raw responses cached locally.
+- [x] Select Finescape and Sons as a no-website opportunity, review public-source evidence, and approve a bounded concept demonstration.
+- [x] Publish the concept at `https://horus-finescape-concept.pages.dev`, with a non-official notice and `noindex, nofollow`.
+- [ ] Prepare, approve, and send outreach; no outreach has been opened or sent.
 - [ ] Record the outcome and the next follow-up action.
 - [ ] Compare what happened against the assumptions made in Phase 0.
+
+Evidence to date: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2026-08-06_phase-5-first-live-concept.md).
 
 **Exit criterion:** the V1 success criteria have been measured against one real run.
 

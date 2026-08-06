@@ -2,7 +2,7 @@
 
 A clean repository for designing and building HORUS V1 with traceability from day one.
 
-> Status: **Phases 0–4 complete and approved** (Javier Napoles, 2026-08-05–06). The local Electron/React foundation includes a reproducible, no-contact vertical workflow.
+> Status: **Phases 0–4 complete and approved; Phase 5 in progress** (Javier Napoles, 2026-08-05–06). The local Electron/React foundation now has a verified first live concept publication, with no outreach or business contact yet made.
 
 ## What this is
 
@@ -56,6 +56,8 @@ Copy `config/local.json.example` to `config/local.json` and fill it in. That fil
 
 ## Next step
 
-**Phase 5 — First Real Use** is the recommended next step, subject to separate authorization. It involves a real search, approved demonstration publication, and approved outreach; each external action stays behind its existing explicit approval gate.
+**Phase 5 — First Real Use** is in progress. A real 20-result landscaping search in Stamford, Connecticut informed the selection of Finescape and Sons; its approved, source-bounded concept is live at [horus-finescape-concept.pages.dev](https://horus-finescape-concept.pages.dev). The concept carries a visible non-official notice and `noindex, nofollow`; it contains no form, contact route, pricing, testimonial, or unsupported claim. No outreach has been prepared, approved, or sent.
 
-Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md), and [`docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md).
+The next operator decision is whether to refine the concept and pursue an approved outreach handoff. Any contact still requires fresh evidence and its own explicit approval.
+
+Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md), [`docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md), and the in-progress Phase 5 milestone [`docs/checkpoints/2026-08-06_phase-5-first-live-concept.md`](docs/checkpoints/2026-08-06_phase-5-first-live-concept.md).

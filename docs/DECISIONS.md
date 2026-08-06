@@ -418,6 +418,16 @@ This file serves as an index. Complex decisions may later be moved to individual
 - Consequences: the test proves an approved dashboard upload path while keeping the local dependency audit clean. It does not replace DEC-022's Cloudflare Pages target or select a production deployment client; that decision remains open until a safe, reviewable Pages workflow is available.
 - Supersedes: the Wrangler deployment-client portion of DEC-042 only; the local-first application architecture remains accepted.
 
+### DEC-044 — Phase 5 uses approved Wrangler Direct Upload for an explicitly approved Pages concept
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: DEC-043 deliberately limited Phase 3 to a test-only dashboard upload while a production Pages client remained unresolved. Phase 5 required publication of one operator-approved, static concept while preserving the review and publication gates.
+- Options considered: repeat a manual dashboard upload; postpone public review; authenticate the current Wrangler CLI and use Pages Direct Upload for this one approved concept.
+- Decision: after explicit operator approval, authenticate Wrangler 4.119.0 through Cloudflare OAuth and deploy the reviewed static bundle to the `horus-finescape-concept` Pages project. The public URL is `https://horus-finescape-concept.pages.dev`.
+- Consequences: the project now has a repeatable, operator-authenticated direct-upload path, but no credential or Wrangler dependency is committed to the repository. The deployment remains a concept, not an official business website: it has a visible HORUS notice, `noindex, nofollow`, and no form, contact route, pricing, testimonial, or unsupported claim. Publication does not authorize outreach or contact; those retain their separate gates under DEC-004 and DEC-041.
+- Supersedes: the production-client uncertainty described in DEC-043; its Phase 3 test-only conclusion remains historical.
+
 ## Template
 
 ### DEC-XXX — Title

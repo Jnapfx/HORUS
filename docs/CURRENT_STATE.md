@@ -6,7 +6,7 @@ Last updated: 2026-08-06
 
 HORUS is a company being founded. HORUS V1 is the first internal operating system built for it, used by the founder to acquire HORUS's first client.
 
-The repository contains the approved product documents, locally cached calibration evidence, and an executable Electron/React/TypeScript foundation. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; its local SQLite and immutable-evidence foundation is now implemented and tested.
+The repository contains the approved product documents, locally cached calibration evidence, and an executable Electron/React/TypeScript foundation. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; its local SQLite and immutable-evidence foundation is implemented and tested. Phase 5 has produced one publicly reviewable, source-bounded concept demonstration without contacting a business.
 
 Thirty real businesses have now calibrated the models. The operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged; the remaining unvalidated assumptions are recorded below rather than treated as settled.
 
@@ -23,6 +23,10 @@ Thirty real businesses have now calibrated the models. The operator approved ret
 **Phase 4 — First Vertical Workflow: complete and approved** by Javier Napoles on 2026-08-06. It validates the full local representative workflow with no external search, publication, Gmail opening, or contact.
 
 Evidence: [`checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](checkpoints/2026-08-06_phase-4-first-vertical-workflow.md).
+
+**Phase 5 — First Real Use: in progress.** An approved 20-result SerpApi Google Maps search for landscaping in Stamford, Connecticut was retained locally as raw evidence. The operator selected Finescape and Sons after public search indicated no website, and approved a source-bounded static concept. It is publicly available at `https://horus-finescape-concept.pages.dev`; the page has a visible non-official notice, `noindex, nofollow`, no form or contact route, no pricing or testimonial, and no image represented as the business's work. No outreach has been prepared, opened, approved, or sent.
+
+Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2026-08-06_phase-5-first-live-concept.md).
 
 Phase 2 turned the approved workflow and calibrated scoring behavior into a reviewed, implementable functional design without selecting technical architecture or writing application code. The retained calibration evidence now gives the interface's evidence presentation and ranking behavior an observed basis.
 
@@ -72,6 +76,9 @@ Phase 2 turned the approved workflow and calibrated scoring behavior into a revi
 - [x] Add automated workflow, compose-handoff, persistence-invariant, and non-production integration-contract tests; local build and lint checks pass.
 - [x] Add credential-safe contracts for SerpApi, PageSpeed, Gmail compose handoff, and Cloudflare Dashboard upload; no contract performs a network call.
 - [x] Validate Cloudflare Dashboard Direct Upload with a 939 B, test-only static HTML asset; deployed without Wrangler or a Cloudflare API token (DEC-043).
+- [x] Execute a real, explicitly approved 20-result landscaping search in Stamford and retain the returned raw evidence locally; the discovery request uses the documented SerpApi Maps query form with the city embedded in `q`.
+- [x] Add a main-process-only SerpApi discovery executor and an automated contract test proving that the API key is never returned in the payload.
+- [x] Publish the approved Finescape and Sons concept to Cloudflare Pages at `https://horus-finescape-concept.pages.dev`; it remains a no-contact, non-official, noindex demonstration (DEC-044).
 
 ## Phase 1 evidence
 
@@ -101,11 +108,11 @@ The complete PageSpeed pass covers 28 of 29 public website URLs in the 30-busine
 
 ## Next
 
-Phase 4 — First Vertical Workflow requires separate operator authorization. The future production Pages deployment client remains deliberately unresolved and belongs to a later production-publication workflow.
+Phase 5 continues with an operator decision: refine the Finescape and Sons concept, or prepare a source-backed outreach for explicit approval. Any outreach requires a fresh-data check at the approval gate and the existing credential-free Gmail compose handoff; no message may be opened or sent without that separate approval.
 
 ## Blockers
 
-**None for the completed Phase 3.** Gmail opened the final approved test compose with the recognized recipient `horus-test@example.invalid`, expected subject and body, and no Send invocation. The contract rejects malformed recipients such as `example.invalid`. Cloudflare dashboard upload was validated without Wrangler; a safe, reviewable production client for the future Pages project remains unresolved. No business has been contacted.
+**No current technical blocker.** Wrangler 4.119.0 was authenticated through the operator's Cloudflare OAuth flow and used as a one-off direct Pages deployment client; no Wrangler dependency or credential was added to the repository. The outstanding product decision is whether the current concept merits an approved outreach. No business has been contacted.
 
 ## Known limitations carried forward
 

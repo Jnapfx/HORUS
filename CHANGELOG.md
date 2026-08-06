@@ -35,6 +35,9 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 - Gmail compose-handoff recipient validation, which rejects values Gmail cannot interpret as email addresses before a browser handoff is opened.
 - Credential-free Gmail compose-handoff browser verification using `horus-test@example.invalid`; Gmail recognized the recipient and HORUS did not invoke Send.
 - Test-only Cloudflare Dashboard Direct Upload validation at `https://spring-night-6be6.javiernpls.workers.dev`, without Wrangler or a Cloudflare API token (DEC-043).
+- A main-process-only SerpApi discovery executor, with a contract test that verifies key handling and the Google Maps city-in-query request shape.
+- The source-bounded Finescape and Sons concept at `https://horus-finescape-concept.pages.dev`, including a visible non-official notice, `noindex, nofollow`, no contact route, and no unsupported claims.
+- Phase 5 in-progress checkpoint: `docs/checkpoints/2026-08-06_phase-5-first-live-concept.md`.
 
 ### Changed
 
@@ -50,3 +53,4 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 - Search defaults lowered: `TARGET_QUALIFIED` 10→5, `MAX_EXAMINED` 100→60 (DEC-032).
 - Charter section 8 now lists no questions blocking development.
 - `DESIGN_REFERENCES.md` updated to separate the operator interface from the demonstration websites, which have different audiences and constraints.
+- Phase 5 moved to in progress after a real 20-result Stamford landscaping search, explicit concept approval, and verified Cloudflare Pages publication. Outreach remains unprepared and unsent.
