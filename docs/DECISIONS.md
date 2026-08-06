@@ -337,6 +337,56 @@ This file serves as an index. Complex decisions may later be moved to individual
 - Consequences: the repository can be made public or shared without exposing the operator's address or credentials. The configuration file must be backed up separately, since version control will not protect it. Values recorded there on 2026-08-05: operator name, home base in Stamford CT, and the search defaults of DEC-032. Credentials remain empty until Phase 1 execution.
 - Supersedes: not applicable
 
+### DEC-036 — HORUS uses a restrained evidence-workbench visual baseline
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: the operator interface must present evidence, uncertainty, and approval states without behaving like a customer-facing marketing surface. HORUS had no approved visual direction.
+- Options considered: a dense dashboard aesthetic; a highly branded sales-tool aesthetic; a restrained evidence workbench with semantic state cues.
+- Decision: the operator interface uses a restrained editorial evidence-workbench baseline: neutral foundations, scannable panels, and semantic accents for information, caution, blocked actions, and completed approvals. Demonstrations may adapt only verified business cues such as a public logo or colours.
+- Consequences: visual decoration, gamified scores, and generic dashboard theatre are excluded from V1. This decision is a V1 interface baseline, not a complete public brand identity for HORUS.
+- Supersedes: not applicable
+
+### DEC-037 — Demonstrations use a common mobile-first template with bounded adaptation
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: individually designing every concept site would add time and risk unsupported or inconsistent content, while one inflexible template would undermine the promise of a customized demonstration.
+- Options considered: a fully bespoke demonstration for every prospect; one fixed template; one common template with bounded per-prospect adaptation.
+- Decision: V1 uses one common, mobile-first demonstration template. It may adapt verified identity cues and source-supported sections, but its structure, safety requirements, and responsive behavior remain controlled.
+- Consequences: demonstrations can be created consistently and reviewed against a stable publication checklist. Sparse source material results in a simpler demonstration rather than invented pages or claims.
+- Supersedes: not applicable
+
+### DEC-038 — V1 adopts a practical WCAG AA-equivalent accessibility baseline
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: the operator needs a concrete accessibility expectation for the application and the published demonstrations, but Phase 2 does not choose the technical stack or test tooling required for formal conformance verification.
+- Options considered: defer accessibility entirely; claim formal conformance now; adopt a practical AA-equivalent baseline and define verification in Phase 3.
+- Decision: V1 requires keyboard-operable approval and destructive controls, visible focus, semantic heading structure, text alternatives for images, sufficient contrast, and no colour-only meaning. Phase 3 defines the technical verification method.
+- Consequences: accessibility is a design constraint from the first implementation work, while no unsupported formal compliance claim is made before a test strategy exists.
+- Supersedes: not applicable
+
+### DEC-039 — Administrative city boundary is the default search interpretation
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: DEC-015 requires the market interpretation to be recorded because city boundaries are ambiguous in practice, but did not select a repeatable V1 default.
+- Options considered: always use a broader market; force a choice with no default; use the administrative city by default and require confirmation for a broader market.
+- Decision: HORUS defaults each search to the administrative city boundary. A broader-market interpretation is allowed only after the operator explicitly confirms it for that run, and the choice is recorded.
+- Consequences: repeated searches have a consistent default while the operator may deliberately include adjacent markets when appropriate. Results from the two interpretations stay distinguishable.
+- Supersedes: not applicable
+
+### DEC-040 — Demonstration editing is structured, not free-form source editing
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: free-form source editing would make it easier to add unsupported content or break template safeguards, while no editing capability would prevent necessary source-backed refinement.
+- Options considered: no operator edits; unrestricted source editing; structured content and layout editing.
+- Decision: V1 allows structured edits to source-backed content and approved layout options only. It does not expose free-form source editing.
+- Consequences: every business-specific element can stay in the evidence inventory and approved template safeguards remain enforceable. One-off bespoke changes beyond the structured options are out of scope for V1.
+- Supersedes: not applicable
+
 ## Template
 
 ### DEC-XXX — Title

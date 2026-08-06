@@ -25,6 +25,10 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 - Git repository initialized with a `.gitignore` excluding operator configuration, credentials, and cached responses.
 - `config/local.json.example` documenting operator configuration structure (DEC-035).
 - Charter approved by Javier Napoles on 2026-08-05; Phase 1 — Calibration authorized.
+- Phase 1 calibration checkpoint: `docs/checkpoints/2026-08-05_phase-1-calibration.md`.
+- Approved Phase 2 functional design: ten workflow-step specifications, six interface views, evidence presentation standard, approval-gate behavior, and a demonstration-template baseline.
+- Phase 2 checkpoint: `docs/checkpoints/2026-08-06_phase-2-functional-design.md`.
+- Decisions DEC-036 through DEC-040: visual baseline, common demonstration template, accessibility baseline, administrative-city search default, and structured demonstration editing.
 
 ### Changed
 

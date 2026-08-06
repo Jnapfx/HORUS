@@ -39,17 +39,19 @@ This phase exists because Phase 0 produced `reputation-scoring-v1` and `web-oppo
 
 Evidence: [`checkpoints/2026-08-05_phase-1-calibration.md`](checkpoints/2026-08-05_phase-1-calibration.md).
 
-## Phase 2 — Functional Design
+## Phase 2 — Functional Design · complete
 
 Outcome: the workflow can be evaluated before it is built.
 
-- [ ] Specify inputs, transformations, outputs, and errors for each of the ten workflow steps.
-- [ ] Design the six interface views of charter section 18.
-- [ ] Define the demonstration template and visual direction (`DESIGN_REFERENCES.md`).
-- [ ] Define the evidence presentation — how a prospect's qualification is shown so the operator can judge it, not merely read a number.
-- [ ] Agree on acceptance criteria per step.
+Evidence: [`FUNCTIONAL_DESIGN.md`](FUNCTIONAL_DESIGN.md), approved by Javier Napoles on 2026-08-06, and [`checkpoints/2026-08-06_phase-2-functional-design.md`](checkpoints/2026-08-06_phase-2-functional-design.md).
 
-**Exit criterion:** the workflow has been reviewed and broken down into implementable tasks.
+- [x] Specify inputs, transformations, outputs, and errors for each of the ten workflow steps.
+- [x] Design the six interface views of charter section 18.
+- [x] Define the demonstration template and visual direction (`DESIGN_REFERENCES.md`).
+- [x] Define the evidence presentation — how a prospect's qualification is shown so the operator can judge it, not merely read a number.
+- [x] Agree on acceptance criteria per step.
+
+**Exit criterion:** met. The workflow has been reviewed and broken down into implementable tasks without selecting an implementation architecture.
 
 ## Phase 3 — Technical Foundation
 

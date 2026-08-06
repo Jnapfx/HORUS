@@ -1,12 +1,12 @@
 # Current State
 
-Last updated: 2026-08-05
+Last updated: 2026-08-06
 
 ## Summary
 
 HORUS is a company being founded. HORUS V1 is the first internal operating system built for it, used by the founder to acquire HORUS's first client.
 
-The repository contains documentation and locally cached calibration evidence only. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; no application code, implementation architecture, or repository history has been created.
+The repository contains documentation and locally cached calibration evidence only. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; no application code or implementation architecture has been created.
 
 Thirty real businesses have now calibrated the models. The operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged; the remaining unvalidated assumptions are recorded below rather than treated as settled.
 
@@ -16,9 +16,9 @@ Thirty real businesses have now calibrated the models. The operator approved ret
 
 **Phase 1 — Calibration: complete and approved** by Javier Napoles on 2026-08-05. Evidence: [`checkpoints/2026-08-05_phase-1-calibration.md`](checkpoints/2026-08-05_phase-1-calibration.md).
 
-Objective: score 30–50 real businesses in Stamford and Norwalk, ground the thresholds in observed data, and close the three remaining charter questions.
+**Phase 2 — Functional Design: complete and approved** by Javier Napoles on 2026-08-06. Evidence: [`FUNCTIONAL_DESIGN.md`](FUNCTIONAL_DESIGN.md) and [`checkpoints/2026-08-06_phase-2-functional-design.md`](checkpoints/2026-08-06_phase-2-functional-design.md). It defines behavior and interface review criteria only; it does not authorize implementation, publication, or outreach.
 
-Phase 1 was inserted ahead of functional design because both scoring models were built entirely from reasoning. Designing an interface around numbers that may be wrong would build the wrong thing carefully.
+Phase 2 turned the approved workflow and calibrated scoring behavior into a reviewed, implementable functional design without selecting technical architecture or writing application code. The retained calibration evidence now gives the interface's evidence presentation and ranking behavior an observed basis.
 
 ## Completed
 
@@ -61,12 +61,13 @@ Phase 1 was inserted ahead of functional design because both scoring models were
 - [x] Set the home base in Stamford CT, stored outside version control (DEC-035).
 - [x] Initialize the Git repository with a `.gitignore` protecting the operator configuration.
 - [x] Complete Phase 1 calibration and retain both scoring-model versions after operator review.
+- [x] Complete Phase 2 functional design: ten-step behavior, six views, evidence standard, approval gates, and the V1 demonstration-template baseline.
 
 ## Phase 1 evidence
 
 **Phase 1 — Calibration, complete.**
 
-The controlled calibration retrieval is underway across restaurants in Stamford, plumbing in Stamford, and landscaping in Norwalk. Restaurant discovery returned 60 rows representing 58 unique businesses; 37 passed G1/G2. Plumbing returned 13 G1/G2 survivors, of which 8 have a verified Stamford address; one is in Greenwich and four lack a verifiable address. Landscaping returned 10 G1/G2 survivors, of which 9 have a verified Norwalk address; one is in Wilton. The selected calibration set has 30 businesses: 13 restaurants stratified by review volume, 8 plumbers, and 9 landscapers.
+The controlled calibration retrieval covered restaurants in Stamford, plumbing in Stamford, and landscaping in Norwalk. Restaurant discovery returned 60 rows representing 58 unique businesses; 37 passed G1/G2. Plumbing returned 13 G1/G2 survivors, of which 8 have a verified Stamford address; one is in Greenwich and four lack a verifiable address. Landscaping returned 10 G1/G2 survivors, of which 9 have a verified Norwalk address; one is in Wilton. The selected calibration set has 30 businesses: 13 restaurants stratified by review volume, 8 plumbers, and 9 landscapers.
 
 Every selected business has cached raw candidate and initial-review responses. Thirty of the review histories have been paginated as needed through up to three pages: 21 cross the 365-day boundary, one has no further page and is complete within the data available, and 8 remain `partial_data` with a further page available. A test history jumped from June 2026 to February 2024 on its second page, so a pagination gap is never interpreted as proof that reviews are absent. The current decision is to stop before further pagination and assess the cost pattern. Raw responses and HTTP headers are cached locally outside version control.
 
@@ -90,11 +91,11 @@ The complete PageSpeed pass covers 28 of 29 public website URLs in the 30-busine
 
 ## Next
 
-**Phase 2 — Functional Design** is the recommended next step, subject to operator authorization. It may specify workflow behavior and interface views, but does not authorize implementation, publication, or outreach.
+**Phase 3 — Technical Foundation** is the recommended next step, subject to a separate operator authorization. It may choose architecture, configure the development environment, and verify the Gmail/Cloudflare integration paths; it does not authorize publication or outreach.
 
 ## Blockers
 
-**None for Phase 1.** Phase 2 requires a separate operator authorization.
+**None for Phase 2.** Phase 3 requires separate operator authorization.
 
 ## Known limitations carried forward
 

@@ -2,7 +2,7 @@
 
 A clean repository for designing and building HORUS V1 with traceability from day one.
 
-> Status: **Phase 0 complete and approved** (Javier Napoles, 2026-08-05). Phase 1 — Calibration authorized. No application code yet.
+> Status: **Phases 0–2 complete and approved** (Javier Napoles, 2026-08-05–06). No application code yet.
 
 ## What this is
 
@@ -56,10 +56,6 @@ Copy `config/local.json.example` to `config/local.json` and fill it in. That fil
 
 ## Next step
 
-**Phase 1 — Calibration**, authorized and not yet started.
+**Phase 3 — Technical Foundation** is the recommended next step, subject to separate authorization. The approved functional specification is [`docs/FUNCTIONAL_DESIGN.md`](docs/FUNCTIONAL_DESIGN.md): it defines the ten-step behavior, six views, evidence standard, approval gates, and V1 visual baseline without selecting an implementation architecture.
 
-Both scoring models were built from reasoning alone; no business has been scored. Before anything is designed or built, 30–50 real businesses in Stamford and Norwalk must be retrieved and scored so the thresholds are grounded rather than guessed. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
-
-Three questions remain open in charter section 8. Two need real data; the third is a budget decision.
-
-Evidence of what is complete: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md).
+Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), and [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md).

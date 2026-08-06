@@ -2,7 +2,7 @@
 
 ## Status
 
-No visual direction has been approved yet.
+The V1 visual baseline is approved in [`FUNCTIONAL_DESIGN.md`](FUNCTIONAL_DESIGN.md), sections 8 and 10. It is a deliberately focused operating and demonstration system, not a complete public brand identity for HORUS.
 
 Two constraints are now fixed. HORUS V1 is an application with a visual interface and persistent state, not a command-line tool (DEC-029). It serves a single operator on a single machine, so there are no accounts, roles, or sharing to design for (DEC-003).
 
@@ -38,7 +38,7 @@ Each reference must explain what should be learned or adopted from it. A referen
 ## Pending decisions
 
 - Interface type: **decided** — visual application with persistent state (DEC-029).
-- Priority devices: operator interface targets the founder's laptop. Demonstrations are mobile-first. Beyond that, undecided.
-- Visual identity: to be defined. HORUS has no brand, colours, or typography yet.
-- Accessibility requirements: to be defined.
-- Whether demonstrations share a common template or are individually styled per prospect: to be defined.
+- Priority devices: operator interface targets the founder's laptop. Demonstrations are mobile-first; approval reviews desktop and 375px views.
+- Visual identity: restrained evidence-workbench for the operator; bounded adaptation from verified business cues for demonstrations (DEC-036).
+- Accessibility requirements: practical WCAG AA-equivalent baseline; technical verification method is a Phase 3 concern (DEC-038).
+- Demonstration template: common mobile-first template with bounded per-prospect adaptation (DEC-037).

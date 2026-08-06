@@ -28,9 +28,9 @@ These are not preferences. Each is a recorded decision with reasoning behind it.
 | File | Contents |
 | --- | --- |
 | `docs/PROJECT_CHARTER.md` | The full specification, 18 sections. The source of truth. |
-| `docs/DECISIONS.md` | 35 decisions with context, options, and consequences. Read before changing anything structural. |
+| `docs/DECISIONS.md` | 40 decisions with context, options, and consequences. Read before changing anything structural. |
 | `docs/CURRENT_STATE.md` | What is done, what is next, known weaknesses. Update at the end of every working session. |
-| `docs/ROADMAP.md` | Seven phases. Phase 1 is active. |
+| `docs/ROADMAP.md` | Seven phases. Phases 0–2 are complete; Phase 3 is next. |
 | `docs/checkpoints/` | Evidence of completed phases. Immutable once written. |
 | `config/local.json` | Operator config. Gitignored. Never read its contents into documentation. |
 | `config/local.json.example` | Structure, no values. Committed. |
@@ -39,19 +39,19 @@ Charter sections worth knowing by number: **9** reputation scoring, **10** web o
 
 ## Current state
 
-Phase 0 is complete and approved (2026-08-05). **Phase 1 — Calibration is authorized and not started.**
+Phases 0–2 are complete and approved (2026-08-05–06). **Phase 3 — Technical Foundation is the next proposed phase.**
 
-There is no application code. Nothing has been retrieved, scored, or contacted.
+There is no application code. Calibration retrieved and scored 30 representative businesses; no business has been contacted.
 
-### What Phase 1 is for
+### What Phase 3 is for
 
-Every threshold in both scoring models was reasoned in the abstract. None has met a real business. Phase 1 retrieves and scores 30–50 businesses in Stamford and Norwalk and sets the thresholds from what is observed.
+Phase 3 may select the implementation architecture, establish the project skeleton and storage layer, and verify Gmail compose-only and Cloudflare Pages paths. It requires separate operator authorization. See `docs/ROADMAP.md`.
 
-**Phase 1 does not authorize contacting anyone.** No demonstration is published, no outreach is drafted. First real contact is Phase 5 and needs its own approvals.
+**No phase authorizes publication or outreach without the two explicit approvals.** First real contact remains Phase 5.
 
-### Suggested first step
+### Suggested next step
 
-Before writing a full calibration harness, run one small retrieval — a single category in Stamford — and measure actual credit consumption against the ~48 estimate in charter 13.3. That estimate came from documentation, not measurement, and everything downstream depends on it.
+If Phase 3 is authorized, turn the approved functional design into an executable, tested technical foundation without expanding scope.
 
 ### Numbers most likely to be wrong
 

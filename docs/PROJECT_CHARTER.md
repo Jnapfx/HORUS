@@ -2,10 +2,10 @@
 
 ## Document status
 
-- Status: draft
+- Status: approved
 - Owner: founder of HORUS (sole operator)
 - Last reviewed: 2026-08-05
-- Approval: pending
+- Approval: Javier Napoles, 2026-08-05
 
 ## 0. Naming
 
