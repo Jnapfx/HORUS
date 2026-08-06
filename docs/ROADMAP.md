@@ -68,17 +68,17 @@ Initial architecture proposal and Gmail/Cloudflare verification: [`TECHNICAL_FOU
 
 **Exit criterion:** met and approved on 2026-08-06. The project can be run and verified from a clean checkout.
 
-## Phase 4 — First Vertical Workflow
+## Phase 4 — First Vertical Workflow · complete and approved
 
 Outcome: the operator can complete the primary workflow from start to finish.
 
-- [ ] Implement the happy path across all ten steps.
-- [ ] Implement both approval gates as blocking (DEC-004).
-- [ ] Handle essential errors, empty states, and the missing-data rules of charter 9.6 and 10.4.
-- [ ] Add acceptance tests.
-- [ ] Validate with a representative case that contacts no one.
+- [x] Implement the happy path across all ten steps in a local representative workflow.
+- [x] Implement both approval gates as blocking (DEC-004).
+- [x] Handle essential errors, empty states, and the missing-data rules of charter 9.6 and 10.4.
+- [x] Add acceptance tests.
+- [x] Validate with a representative case that contacts no one.
 
-**Exit criterion:** a reproducible functional checkpoint exists.
+**Exit criterion:** met and approved on 2026-08-06.
 
 ## Phase 5 — First Real Use
 

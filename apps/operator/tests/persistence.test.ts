@@ -35,4 +35,17 @@ describe('local evidence store', () => {
     expect(store.getFoundationStatus()).toMatchObject({ rawSnapshotCount: 1, eventCount: 1 })
     store.close()
   })
+
+  it('resumes a workflow snapshot while retaining its append-only history', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+    const state = { step: 'demo_review', demoApproved: false }
+
+    store.saveWorkflowState({ workflowId: 'representative-local-v1', state, updatedAt: '2026-08-06T12:02:00.000Z' })
+
+    expect(store.getWorkflowState('representative-local-v1')).toEqual(state)
+    expect(store.getFoundationStatus().eventCount).toBe(1)
+    store.close()
+  })
 })

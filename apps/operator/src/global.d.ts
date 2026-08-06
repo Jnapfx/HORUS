@@ -1,5 +1,7 @@
 export {}
 
+import type { VerticalWorkflowState } from './domain/representative-workflow'
+
 declare global {
   interface Window {
     horus?: {
@@ -18,6 +20,10 @@ declare global {
           approvalRequirement: string
           rawEvidenceRequirement: 'required' | 'not-applicable'
         }>>
+      }
+      workflow: {
+        getRepresentative: () => Promise<VerticalWorkflowState | null>
+        saveRepresentative: (state: VerticalWorkflowState) => Promise<void>
       }
     }
   }

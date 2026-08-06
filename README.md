@@ -2,7 +2,7 @@
 
 A clean repository for designing and building HORUS V1 with traceability from day one.
 
-> Status: **Phases 0–3 complete and approved** (Javier Napoles, 2026-08-05–06). The local Electron/React foundation is implemented and tested.
+> Status: **Phases 0–4 complete and approved** (Javier Napoles, 2026-08-05–06). The local Electron/React foundation includes a reproducible, no-contact vertical workflow.
 
 ## What this is
 
@@ -56,6 +56,6 @@ Copy `config/local.json.example` to `config/local.json` and fill it in. That fil
 
 ## Next step
 
-**Phase 4 — First Vertical Workflow** is the recommended next step, subject to separate authorization. Phase 3's approved technical foundation is documented in [`docs/TECHNICAL_FOUNDATION.md`](docs/TECHNICAL_FOUNDATION.md) and its [checkpoint](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md).
+**Phase 5 — First Real Use** is the recommended next step, subject to separate authorization. It involves a real search, approved demonstration publication, and approved outreach; each external action stays behind its existing explicit approval gate.
 
-Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), and [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md).
+Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md), and [`docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md).

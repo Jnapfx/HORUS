@@ -38,6 +38,7 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 
 ### Changed
 
+- Phase 4 — First Vertical Workflow completed and approved by Javier Napoles on 2026-08-06.
 - Phase 3 — Technical Foundation completed and approved by Javier Napoles on 2026-08-06.
 - The Gmail handoff test now uses a syntactically valid address at the reserved `.invalid` domain; a bare `example.invalid` is rejected locally after Gmail rejected it in the approved no-send browser check.
 - DEC-028 superseded by DEC-041 after Phase 3 verification established that Gmail's `gmail.compose` scope permits sending as well as draft management. HORUS now uses a credential-free Gmail compose handoff after explicit approval.

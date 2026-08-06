@@ -34,6 +34,10 @@ app.whenReady().then(() => {
   const store = createHorusStore(path.join(app.getPath('userData'), 'data'))
   ipcMain.handle('foundation:status', () => store.getFoundationStatus())
   ipcMain.handle('foundation:integration-contracts', () => listIntegrationContracts())
+  ipcMain.handle('workflow:representative:get', () => store.getWorkflowState('representative-local-v1'))
+  ipcMain.handle('workflow:representative:save', (_event, state: unknown) => {
+    store.saveWorkflowState({ workflowId: 'representative-local-v1', state, updatedAt: new Date().toISOString() })
+  })
   createWindow()
 
   app.on('activate', () => {

@@ -20,6 +20,8 @@ export type FoundationStatus = {
 export type HorusStore = {
   appendRawSnapshot: (input: RawSnapshotInput) => { id: string; path: string }
   appendEvent: (input: { aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }) => string
+  getWorkflowState: (workflowId: string) => unknown | null
+  saveWorkflowState: (input: { workflowId: string; state: unknown; updatedAt: string }) => void
   getFoundationStatus: () => FoundationStatus
   close: () => void
 }
@@ -57,6 +59,11 @@ export function createHorusStore(dataDirectory: string): HorusStore {
       payload_json TEXT NOT NULL,
       occurred_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS workflow_sessions (
+      workflow_id TEXT PRIMARY KEY,
+      state_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `)
 
   const appendSnapshot = database.prepare(`
@@ -68,6 +75,12 @@ export function createHorusStore(dataDirectory: string): HorusStore {
     INSERT INTO domain_events
       (id, aggregate_type, aggregate_id, event_type, payload_json, occurred_at)
     VALUES (@id, @aggregateType, @aggregateId, @eventType, @payloadJson, @occurredAt)
+  `)
+  const getWorkflowState = database.prepare('SELECT state_json FROM workflow_sessions WHERE workflow_id = ?')
+  const saveWorkflowState = database.prepare(`
+    INSERT INTO workflow_sessions (workflow_id, state_json, updated_at)
+    VALUES (@workflowId, @stateJson, @updatedAt)
+    ON CONFLICT(workflow_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at
   `)
 
   return {
@@ -108,6 +121,20 @@ export function createHorusStore(dataDirectory: string): HorusStore {
         occurredAt: input.occurredAt,
       })
       return id
+    },
+    getWorkflowState(workflowId) {
+      const result = getWorkflowState.get(workflowId) as { state_json: string } | undefined
+      return result ? JSON.parse(result.state_json) : null
+    },
+    saveWorkflowState(input) {
+      saveWorkflowState.run({ workflowId: input.workflowId, stateJson: stablePayload(input.state), updatedAt: input.updatedAt })
+      this.appendEvent({
+        aggregateType: 'workflow_session',
+        aggregateId: input.workflowId,
+        eventType: 'workflow.snapshot_saved',
+        payload: input.state,
+        occurredAt: input.updatedAt,
+      })
     },
     getFoundationStatus() {
       const rawSnapshotCount = (database.prepare('SELECT COUNT(*) AS count FROM raw_snapshots').get() as { count: number }).count

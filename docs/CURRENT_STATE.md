@@ -20,6 +20,10 @@ Thirty real businesses have now calibrated the models. The operator approved ret
 
 **Phase 3 — Technical Foundation: complete and approved** by Javier Napoles on 2026-08-06. Evidence: [`TECHNICAL_FOUNDATION.md`](TECHNICAL_FOUNDATION.md) and [`checkpoints/2026-08-06_phase-3-technical-foundation.md`](checkpoints/2026-08-06_phase-3-technical-foundation.md). Gmail recognized the final reserved-domain test recipient and HORUS did not invoke Send. A test-only Cloudflare Worker is public at `https://spring-night-6be6.javiernpls.workers.dev`; it contains no business data, contact, or operational capability. No HORUS credential, production demonstration, or outreach has been created.
 
+**Phase 4 — First Vertical Workflow: complete and approved** by Javier Napoles on 2026-08-06. It validates the full local representative workflow with no external search, publication, Gmail opening, or contact.
+
+Evidence: [`checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](checkpoints/2026-08-06_phase-4-first-vertical-workflow.md).
+
 Phase 2 turned the approved workflow and calibrated scoring behavior into a reviewed, implementable functional design without selecting technical architecture or writing application code. The retained calibration evidence now gives the interface's evidence presentation and ranking behavior an observed basis.
 
 ## Completed
