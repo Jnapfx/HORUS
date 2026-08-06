@@ -6,7 +6,7 @@ Last updated: 2026-08-06
 
 HORUS is a company being founded. HORUS V1 is the first internal operating system built for it, used by the founder to acquire HORUS's first client.
 
-The repository contains documentation and locally cached calibration evidence only. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; no application code or implementation architecture has been created.
+The repository contains the approved product documents, locally cached calibration evidence, and an executable Electron/React/TypeScript foundation. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; its local SQLite and immutable-evidence foundation is now implemented and tested.
 
 Thirty real businesses have now calibrated the models. The operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged; the remaining unvalidated assumptions are recorded below rather than treated as settled.
 
@@ -17,6 +17,8 @@ Thirty real businesses have now calibrated the models. The operator approved ret
 **Phase 1 — Calibration: complete and approved** by Javier Napoles on 2026-08-05. Evidence: [`checkpoints/2026-08-05_phase-1-calibration.md`](checkpoints/2026-08-05_phase-1-calibration.md).
 
 **Phase 2 — Functional Design: complete and approved** by Javier Napoles on 2026-08-06. Evidence: [`FUNCTIONAL_DESIGN.md`](FUNCTIONAL_DESIGN.md) and [`checkpoints/2026-08-06_phase-2-functional-design.md`](checkpoints/2026-08-06_phase-2-functional-design.md). It defines behavior and interface review criteria only; it does not authorize implementation, publication, or outreach.
+
+**Phase 3 — Technical Foundation: complete and approved** by Javier Napoles on 2026-08-06. Evidence: [`TECHNICAL_FOUNDATION.md`](TECHNICAL_FOUNDATION.md) and [`checkpoints/2026-08-06_phase-3-technical-foundation.md`](checkpoints/2026-08-06_phase-3-technical-foundation.md). Gmail recognized the final reserved-domain test recipient and HORUS did not invoke Send. A test-only Cloudflare Worker is public at `https://spring-night-6be6.javiernpls.workers.dev`; it contains no business data, contact, or operational capability. No HORUS credential, production demonstration, or outreach has been created.
 
 Phase 2 turned the approved workflow and calibrated scoring behavior into a reviewed, implementable functional design without selecting technical architecture or writing application code. The retained calibration evidence now gives the interface's evidence presentation and ranking behavior an observed basis.
 
@@ -48,7 +50,7 @@ Phase 2 turned the approved workflow and calibrated scoring behavior into a revi
 - [x] Define the demonstration as a real navigable website with explicit limits, mandatory publication requirements, and an image-sourcing rule (DEC-023, DEC-024, DEC-025, charter section 15).
 - [x] Set the first target market as Stamford and Norwalk, Connecticut, with distances in miles (DEC-026).
 - [x] Set the language policy: English by default, Spanish only on recorded evidence, operator-overridable (DEC-027).
-- [x] Decide outreach delivery: HORUS drafts in Gmail with a compose-only scope, the operator sends (DEC-028).
+- [x] Decide outreach delivery: HORUS hands an approved message to Gmail without API credentials; the operator composes and sends (DEC-041, supersedes DEC-028).
 - [x] Establish that HORUS V1 is an application with a visual interface and persistent state (DEC-029).
 - [x] Resolve in-person follow-up: an operator action logged in the tracker after a prospect shows interest, not a workflow HORUS runs (DEC-030).
 - [x] Set demonstration lifetime: at 60 days without a response HORUS prompts the operator to decide on removal; nothing is removed automatically (DEC-031).
@@ -62,6 +64,10 @@ Phase 2 turned the approved workflow and calibrated scoring behavior into a revi
 - [x] Initialize the Git repository with a `.gitignore` protecting the operator configuration.
 - [x] Complete Phase 1 calibration and retain both scoring-model versions after operator review.
 - [x] Complete Phase 2 functional design: ten-step behavior, six views, evidence standard, approval gates, and the V1 demonstration-template baseline.
+- [x] Establish the Phase 3 local Electron/React/TypeScript application foundation, typed preload boundary, SQLite store, immutable raw-evidence manifest, and append-only event log (DEC-042).
+- [x] Add automated workflow, compose-handoff, persistence-invariant, and non-production integration-contract tests; local build and lint checks pass.
+- [x] Add credential-safe contracts for SerpApi, PageSpeed, Gmail compose handoff, and Cloudflare Dashboard upload; no contract performs a network call.
+- [x] Validate Cloudflare Dashboard Direct Upload with a 939 B, test-only static HTML asset; deployed without Wrangler or a Cloudflare API token (DEC-043).
 
 ## Phase 1 evidence
 
@@ -91,11 +97,11 @@ The complete PageSpeed pass covers 28 of 29 public website URLs in the 30-busine
 
 ## Next
 
-**Phase 3 — Technical Foundation** is the recommended next step, subject to a separate operator authorization. It may choose architecture, configure the development environment, and verify the Gmail/Cloudflare integration paths; it does not authorize publication or outreach.
+Phase 4 — First Vertical Workflow requires separate operator authorization. The future production Pages deployment client remains deliberately unresolved and belongs to a later production-publication workflow.
 
 ## Blockers
 
-**None for Phase 2.** Phase 3 requires separate operator authorization.
+**None for the completed Phase 3.** Gmail opened the final approved test compose with the recognized recipient `horus-test@example.invalid`, expected subject and body, and no Send invocation. The contract rejects malformed recipients such as `example.invalid`. Cloudflare dashboard upload was validated without Wrangler; a safe, reviewable production client for the future Pages project remains unresolved. No business has been contacted.
 
 ## Known limitations carried forward
 
@@ -118,26 +124,25 @@ These do not block starting. They are what calibration exists to resolve, and th
 
 **Accepted trade-offs**
 
-- Send status is operator-declared, not observed (DEC-028).
+- Send status is operator-declared, not observed (DEC-041).
 - Demonstration removal depends on the operator answering a repeated prompt (DEC-031).
 - A free-hosting URL carries less credibility in cold outreach than an established domain (DEC-022).
 - Factor 5 measures absences, which are easy to detect and easy to get wrong when content exists where HORUS did not look (DEC-034).
 
 **Not yet designed**
 
-- Visual identity does not exist. HORUS has no brand, colours, or typography, and demonstrations need a visual direction.
-- Storage requirements are defined (charter section 14) but no technology is selected, per DEC-002.
+- Production deployment automation is not selected; the Phase 3 Cloudflare Worker was test-only and does not replace the future Pages project.
 
 ## Technical status
 
 | Area | Status |
 | --- | --- |
-| Application code | Not started |
-| Tests | Not started |
-| Infrastructure | Not defined |
-| Integrations | Not defined |
-| Design | Interface type decided (DEC-029); visual direction undefined |
-| Deployment | Not configured |
+| Application code | Electron/React foundation implemented |
+| Tests | 10 automated tests passing |
+| Infrastructure | Local SQLite plus immutable JSON evidence manifest |
+| Integrations | Non-production contracts implemented; Gmail handoff browser verification complete with no send |
+| Design | Functional design and visual baseline approved |
+| Deployment | Cloudflare dashboard test Worker verified; production Pages client unresolved |
 
 ## Update rule
 

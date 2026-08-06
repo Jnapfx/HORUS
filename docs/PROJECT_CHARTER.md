@@ -697,17 +697,17 @@ Language selection is surfaced to the operator with its supporting evidence at t
 
 ## 17. Outreach delivery
 
-### 17.1 HORUS drafts; the operator sends
+### 17.1 HORUS prepares; the operator composes and sends
 
-HORUS creates the outreach message as a **draft in the operator's Gmail account** and marks it in its own interface as pending send. The operator opens the draft, reviews it, and sends it personally (DEC-028).
+After explicit outreach approval, HORUS prepares a **Gmail compose handoff** and marks it in its own interface as pending send. The operator opens Gmail, reviews the prepared message, saves it as a Gmail draft if desired, and sends it personally (DEC-041).
 
-HORUS never sends.
+HORUS never sends and holds no Gmail OAuth credential.
 
-### 17.2 The permission enforces the gate
+### 17.2 No credential can bypass the gate
 
-HORUS requests the Gmail scope that allows **creating drafts only**, not sending. The approval gate of DEC-004 therefore stops being a rule the software is asked to respect and becomes something it is technically incapable of violating. A bug, a bad prompt, or a future change of intent cannot cause an unapproved message to reach a business owner, because the credential does not permit it.
+The Gmail API scope required to create a draft, `gmail.compose`, also permits sending. HORUS therefore does not request it: a credential with a send capability would not provide the hard guarantee required by DEC-004.
 
-This is the strongest available form of the guarantee, and it is preferred over any policy-level enforcement.
+The compose handoff is available only after the outreach approval event. Because HORUS has no Gmail credential and no Gmail API integration, it is technically incapable of sending or creating an unapproved message in the operator's mailbox.
 
 ### 17.3 "Sent" is operator-declared, not observed
 
@@ -715,7 +715,7 @@ Because the operator sends from Gmail directly, HORUS cannot observe that it hap
 
 This distinction is recorded in the data, not merely in the interface. A status HORUS observed and a status the operator asserted have different evidential weight, and the record must not blur them.
 
-Automatic verification would require read access to the mailbox — a broader permission than drafting. It is deliberately not requested in V1, and is noted as a possible later enhancement if the manual step proves unreliable.
+Automatic verification would require mailbox access — broader authority deliberately not requested in V1 — and is noted as a possible later enhancement if the manual step proves unreliable.
 
 ## 18. Interface
 

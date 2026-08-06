@@ -6,7 +6,7 @@ Read this before doing anything in this repository.
 
 **HORUS** is a company being founded by Javier Napoles, sole operator. **HORUS V1** is the internal tool he uses to acquire the company's first client. It is **not** a product for sale, and no design decision may assume it will become one (DEC-003).
 
-One complete run: enter a business category and a city → find local businesses with strong reputations but weak web presence → rank them with evidence → the operator picks one → build a customized demonstration website from verified public information → operator approves → publish it → draft an outreach email → operator approves and sends → record the prospect and next follow-up.
+One complete run: enter a business category and a city → find local businesses with strong reputations but weak web presence → rank them with evidence → the operator picks one → build a customized demonstration website from verified public information → operator approves → publish it → prepare an outreach handoff → operator composes and sends in Gmail → record the prospect and next follow-up.
 
 **One search → one qualified prospect → one approved live demonstration → one approved outreach → one trackable sales opportunity.**
 
@@ -15,7 +15,7 @@ One complete run: enter a business category and a city → find local businesses
 These are not preferences. Each is a recorded decision with reasoning behind it.
 
 1. **Nothing reaches a business owner without explicit operator approval.** Two blocking gates: before publishing a demonstration, before sending outreach (DEC-004).
-2. **HORUS never sends email.** It creates Gmail drafts using a **draft-only OAuth scope**. Never request `gmail.send`. The permission is what makes rule 1 unbreakable rather than merely promised (DEC-028).
+2. **HORUS never sends email.** It holds no Gmail API credential. After explicit approval it opens a compose handoff for the operator, who sends personally in Gmail (DEC-041).
 3. **Never invent information in a demonstration.** No services, credentials, claims, testimonials, pricing, or history that is not traceable to a verified public source. Gaps stay empty or use labelled placeholders (DEC-005). Images are the business's own public photos or clearly labelled placeholders — never generic imagery presented as their work (DEC-025).
 4. **Never commit `config/local.json`.** It contains the operator's home address and API credentials. A home address committed once stays in Git history forever (DEC-035).
 5. **Operator flags never auto-reject.** Judgment-dependent signals — suspected review manipulation, franchise ownership, reputational risk — are surfaced for the operator to decide. Only objective, reproducible conditions auto-reject (DEC-008).
@@ -28,9 +28,9 @@ These are not preferences. Each is a recorded decision with reasoning behind it.
 | File | Contents |
 | --- | --- |
 | `docs/PROJECT_CHARTER.md` | The full specification, 18 sections. The source of truth. |
-| `docs/DECISIONS.md` | 40 decisions with context, options, and consequences. Read before changing anything structural. |
+| `docs/DECISIONS.md` | 43 decisions with context, options, and consequences. Read before changing anything structural. |
 | `docs/CURRENT_STATE.md` | What is done, what is next, known weaknesses. Update at the end of every working session. |
-| `docs/ROADMAP.md` | Seven phases. Phases 0–2 are complete; Phase 3 is next. |
+| `docs/ROADMAP.md` | Seven phases. Phases 0–2 are complete; Phase 3 is active. |
 | `docs/checkpoints/` | Evidence of completed phases. Immutable once written. |
 | `config/local.json` | Operator config. Gitignored. Never read its contents into documentation. |
 | `config/local.json.example` | Structure, no values. Committed. |
@@ -39,19 +39,19 @@ Charter sections worth knowing by number: **9** reputation scoring, **10** web o
 
 ## Current state
 
-Phases 0–2 are complete and approved (2026-08-05–06). **Phase 3 — Technical Foundation is the next proposed phase.**
+Phases 0–2 are complete and approved (2026-08-05–06). **Phase 3 — Technical Foundation is active.**
 
-There is no application code. Calibration retrieved and scored 30 representative businesses; no business has been contacted.
+The repository now includes an executable Electron/React/TypeScript foundation with SQLite-backed local persistence and automated checks. Calibration retrieved and scored 30 representative businesses; no business has been contacted.
 
 ### What Phase 3 is for
 
-Phase 3 may select the implementation architecture, establish the project skeleton and storage layer, and verify Gmail compose-only and Cloudflare Pages paths. It requires separate operator authorization. See `docs/ROADMAP.md`.
+Phase 3 may select the implementation architecture, establish the project skeleton and storage layer, and verify the credential-free Gmail compose handoff and Cloudflare Pages paths. It requires architecture approval. See `docs/ROADMAP.md`.
 
 **No phase authorizes publication or outreach without the two explicit approvals.** First real contact remains Phase 5.
 
 ### Suggested next step
 
-If Phase 3 is authorized, turn the approved functional design into an executable, tested technical foundation without expanding scope.
+Complete the remaining Phase 3 adapter contracts and verify the credential-free Gmail handoff with a test-only message, without expanding scope.
 
 ### Numbers most likely to be wrong
 

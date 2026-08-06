@@ -16,6 +16,13 @@ token.json
 cache/
 data/raw/
 
+# Local application outputs and dependencies
+node_modules/
+apps/*/node_modules/
+apps/*/dist/
+apps/*/build/
+*.tsbuildinfo
+
 # OS noise
 .DS_Store
 Thumbs.db

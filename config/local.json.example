@@ -21,10 +21,9 @@
   },
 
   "credentials": {
-    "_comment": "Never commit real keys. Gmail scope must be draft-creation only, never send — DEC-028.",
+    "_comment": "Never commit real keys. HORUS does not request Gmail API credentials in V1 — see DEC-041.",
     "serpapi_key": "",
-    "pagespeed_api_key": "",
-    "gmail_oauth_client": ""
+    "pagespeed_api_key": ""
   },
 
   "deployment": {

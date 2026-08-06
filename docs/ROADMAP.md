@@ -53,17 +53,20 @@ Evidence: [`FUNCTIONAL_DESIGN.md`](FUNCTIONAL_DESIGN.md), approved by Javier Nap
 
 **Exit criterion:** met. The workflow has been reviewed and broken down into implementable tasks without selecting an implementation architecture.
 
-## Phase 3 — Technical Foundation
+## Phase 3 — Technical Foundation · complete and approved
 
 Outcome: an executable, tested, and documented skeleton exists.
 
-- [ ] Choose an architecture based on confirmed requirements.
-- [ ] Configure the environment and automated quality checks.
-- [ ] Establish the storage layer required by charter section 14, separating immutable raw data from derived scores.
-- [ ] Verify the Gmail compose-only scope and the Cloudflare Pages deployment path.
-- [ ] Document installation and configuration.
+Initial architecture proposal and Gmail/Cloudflare verification: [`TECHNICAL_FOUNDATION.md`](TECHNICAL_FOUNDATION.md). DEC-041 resolves the Gmail safety boundary; architecture approval is required before the executable foundation is created.
 
-**Exit criterion:** the project can be run and verified from a clean checkout.
+- [x] Choose an architecture based on confirmed requirements (DEC-042).
+- [x] Configure the environment and automated quality checks.
+- [x] Establish the storage layer required by charter section 14, separating immutable raw data from derived scores.
+- [x] Complete the credential-free Gmail compose-handoff confirmation with a syntactically valid reserved-domain test address; Gmail recognized the recipient and no Send control was invoked.
+- [x] Verify a Cloudflare Dashboard Direct Upload with a test-only static asset; deployed at `https://spring-night-6be6.javiernpls.workers.dev` without Wrangler or a Cloudflare API token.
+- [x] Document installation and configuration.
+
+**Exit criterion:** met and approved on 2026-08-06. The project can be run and verified from a clean checkout.
 
 ## Phase 4 — First Vertical Workflow
 

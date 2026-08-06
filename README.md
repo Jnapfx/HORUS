@@ -2,13 +2,13 @@
 
 A clean repository for designing and building HORUS V1 with traceability from day one.
 
-> Status: **Phases 0–2 complete and approved** (Javier Napoles, 2026-08-05–06). No application code yet.
+> Status: **Phases 0–3 complete and approved** (Javier Napoles, 2026-08-05–06). The local Electron/React foundation is implemented and tested.
 
 ## What this is
 
 HORUS is a company being founded. **HORUS V1 is the first internal operating tool built for it** — used by the founder to acquire HORUS's first client. It is not a product for sale (DEC-003).
 
-One complete run does this: enter a business category and a city → HORUS finds local businesses with strong reputations but weak web presence, ranks them with evidence → the founder picks one → HORUS builds a customized demonstration website from verified public information → the founder approves it before publication → HORUS publishes it and drafts an outreach message → the founder approves and sends it → HORUS records the prospect and the next follow-up.
+One complete run does this: enter a business category and a city → HORUS finds local businesses with strong reputations but weak web presence, ranks them with evidence → the founder picks one → HORUS builds a customized demonstration website from verified public information → the founder approves it before publication → HORUS publishes it and prepares an outreach handoff → the founder approves, composes, and sends it in Gmail → HORUS records the prospect and the next follow-up.
 
 **One search → one qualified prospect → one approved live demonstration → one approved outreach → one trackable sales opportunity.**
 
@@ -56,6 +56,6 @@ Copy `config/local.json.example` to `config/local.json` and fill it in. That fil
 
 ## Next step
 
-**Phase 3 — Technical Foundation** is the recommended next step, subject to separate authorization. The approved functional specification is [`docs/FUNCTIONAL_DESIGN.md`](docs/FUNCTIONAL_DESIGN.md): it defines the ten-step behavior, six views, evidence standard, approval gates, and V1 visual baseline without selecting an implementation architecture.
+**Phase 4 — First Vertical Workflow** is the recommended next step, subject to separate authorization. Phase 3's approved technical foundation is documented in [`docs/TECHNICAL_FOUNDATION.md`](docs/TECHNICAL_FOUNDATION.md) and its [checkpoint](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md).
 
-Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), and [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md).
+Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), and [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md).

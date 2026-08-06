@@ -265,7 +265,7 @@ This file serves as an index. Complex decisions may later be moved to individual
 ### DEC-028 — HORUS drafts outreach in Gmail; the operator sends
 
 - Date: 2026-08-05
-- Status: accepted
+- Status: superseded by DEC-041
 - Context: outreach could be sent by HORUS from the operator's business email, or prepared for the operator to send. Sending directly would require managing bounces, deliverability, and sender reputation, and would place an automated system between HORUS and a real business owner.
 - Options considered: HORUS sends directly; HORUS displays the message for manual copying; HORUS creates a draft in the operator's Gmail account.
 - Decision: HORUS creates the message as a draft in the operator's Gmail account and marks it pending send in its own interface. The operator reviews the draft and sends it personally. HORUS never sends.
@@ -386,6 +386,37 @@ This file serves as an index. Complex decisions may later be moved to individual
 - Decision: V1 allows structured edits to source-backed content and approved layout options only. It does not expose free-form source editing.
 - Consequences: every business-specific element can stay in the evidence inventory and approved template safeguards remain enforceable. One-off bespoke changes beyond the structured options are out of scope for V1.
 - Supersedes: not applicable
+
+### DEC-041 — HORUS hands approved outreach to Gmail without Gmail API credentials
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: Phase 3 verified that the Gmail API scope required to create a draft, `gmail.compose`, also permits sending email. The credential-level guarantee asserted in DEC-028 is therefore unavailable: using that scope would allow HORUS to send even if its application code chose not to.
+- Options considered: retain Gmail API draft creation and accept an application-level send block; hand approved content to the operator's Gmail composition flow without OAuth credentials; remove Gmail integration and require manual copying.
+- Decision: after explicit outreach approval, HORUS prepares a Gmail compose handoff for the operator. HORUS holds no Gmail OAuth credential and does not call the Gmail API. The operator reviews, saves if desired, and sends the message in Gmail personally, then declares the result in HORUS.
+- Consequences: HORUS is technically incapable of sending because it has no Gmail credential or sending path. The system no longer claims to create a Gmail API draft automatically; it records that the handoff was opened, while the send status remains operator-declared. The exact compose-handoff mechanism is a Phase 3 implementation concern and must not transmit the message before approval.
+- Sources: Google documents that `gmail.compose` “manages drafts and sends email,” while the draft-create endpoint accepts that same scope. Verified 2026-08-06.
+- Supersedes: DEC-028
+
+### DEC-042 — HORUS V1 uses a local Electron, React, TypeScript, Vite, and SQLite foundation
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: Phase 3 needed an implementation foundation consistent with one operator on one laptop, durable and inspectable evidence, a visual interface, immutable raw responses, and controlled static demonstration publication.
+- Options considered: hosted web application with remote storage; Electron local application with React/TypeScript and SQLite; a local browser-only application using browser storage.
+- Decision: HORUS V1 is a local-first Electron desktop application. Its interface uses React, TypeScript, and Vite; persistent derived records and event history use SQLite; immutable raw source responses are stored as content-addressed JSON files referenced by SQLite manifests. Demonstrations are static bundles for Cloudflare Pages Direct Upload through Wrangler after an approved publication command.
+- Consequences: no accounts, remote database, or synchronization are introduced. Credentials and external access remain outside the renderer process. The Cloudflare demo project intentionally uses Direct Upload rather than automatic Git deployment, which preserves the publication gate but means that Pages project cannot later switch to Git integration without creating a new project. The Gmail integration remains credential-free under DEC-041.
+- Supersedes: not applicable
+
+### DEC-043 — Phase 3 validates Cloudflare upload through the dashboard, not Wrangler
+
+- Date: 2026-08-06
+- Status: accepted
+- Context: the evaluated Wrangler versions introduced known development dependency findings, including a high-severity `pages deploy` command-injection advisory in npm's proposed downgrade. The operator still needed proof that a test-only static asset can be deployed without introducing that client into HORUS.
+- Options considered: install the current Wrangler; accept npm's proposed downgrade; postpone the test; use Cloudflare Dashboard Direct Upload manually.
+- Decision: Phase 3 uses Cloudflare Dashboard Direct Upload manually for one approved, test-only static HTML asset. The asset was deployed at `https://spring-night-6be6.javiernpls.workers.dev`; no API token, Wrangler installation, business data, contact, or production demonstration was used.
+- Consequences: the test proves an approved dashboard upload path while keeping the local dependency audit clean. It does not replace DEC-022's Cloudflare Pages target or select a production deployment client; that decision remains open until a safe, reviewable Pages workflow is available.
+- Supersedes: the Wrangler deployment-client portion of DEC-042 only; the local-first application architecture remains accepted.
 
 ## Template
 
