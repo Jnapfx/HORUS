@@ -99,7 +99,7 @@ describe('bounded agent task', () => {
     expect(args).not.toContain('--allowedTools')
   })
 
-  it('allow-lists exactly the mapped evidence tool when wiring is supplied (DEC-059)', () => {
+  it('allow-lists exactly the mapped evidence tools when wiring is supplied (DEC-059, extended for inspect_public_website_readonly)', () => {
     const wiring = createEvidenceToolWiring({
       serverScriptPath: '/app/build/electron/agent/evidence-mcp-server.js',
       databasePath: '/app/data/horus.sqlite',
@@ -118,7 +118,16 @@ describe('bounded agent task', () => {
 
     const allowedToolsIndex = args.indexOf('--allowedTools')
     expect(allowedToolsIndex).toBeGreaterThan(-1)
-    expect(args[allowedToolsIndex + 1]).toBe('mcp__horus-evidence__read_evidence_snapshot')
+    // task() defaults to ANALYST_TOOLS's full list; createEvidenceToolWiring's
+    // default wiring now maps two of those five to a real MCP tool
+    // (read_evidence_snapshot, DEC-059; inspect_public_website_readonly,
+    // DEC-066). The other three (run_deterministic_scoring, save_agent_draft,
+    // request_operator_review) still have no wiring entry, so per DEC-058 they
+    // resolve to no access regardless of what task.allowedTools names.
+    expect((args[allowedToolsIndex + 1] as string).split(',').sort()).toEqual([
+      'mcp__horus-evidence__inspect_public_website_readonly',
+      'mcp__horus-evidence__read_evidence_snapshot',
+    ])
   })
 
   it('grants nothing for a wired server if the task never named the tool', () => {
