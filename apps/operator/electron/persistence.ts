@@ -19,6 +19,19 @@ export type FoundationStatus = {
 
 export type RawSnapshotSummary = { id: string; source: string; retrievedAt: string }
 
+/**
+ * DEC-067. What `save_agent_draft` (one of the 4 `ANALYST_TOOLS` DEC-049
+ * named with no implementation) resolves to: not a live write tool available
+ * to the Claude Code subprocess mid-run — that would let unvalidated output
+ * reach storage before `parseAnalystOutput` ever runs — but a save performed
+ * by HORUS's own main-process code, only after a run's output has already
+ * passed that validation. The draft is exactly what the analyst returned:
+ * inert data for the operator to review, never a score, never an approval,
+ * never a state transition (DEC-045).
+ */
+export type AgentDraftInput = { taskId: string; createdAt: string; output: unknown }
+export type AgentDraftSummary = { id: string; taskId: string; createdAt: string; output: unknown }
+
 export type HorusStore = {
   appendRawSnapshot: (input: RawSnapshotInput) => { id: string; path: string; payloadHash: string }
   appendEvent: (input: { aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }) => string
@@ -33,6 +46,10 @@ export type HorusStore = {
    * (DEC-059), which enforces its own read-only guarantee independently.
    */
   listRawSnapshots: (limit?: number) => readonly RawSnapshotSummary[]
+  /** DEC-067. Persists an already-validated analyst output. See `AgentDraftInput`. */
+  saveAgentDraft: (input: AgentDraftInput) => { id: string }
+  /** Most recent first. */
+  listAgentDrafts: (limit?: number) => readonly AgentDraftSummary[]
   close: () => void
 }
 
@@ -120,6 +137,12 @@ export function createHorusStore(dataDirectory: string): HorusStore {
       state_json TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS agent_drafts (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      output_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `)
 
   migrateRawSnapshots(database)
@@ -141,6 +164,13 @@ export function createHorusStore(dataDirectory: string): HorusStore {
   `)
   const listSnapshots = database.prepare(
     'SELECT id, source, retrieved_at FROM raw_snapshots ORDER BY retrieved_at DESC LIMIT ?',
+  )
+  const insertDraft = database.prepare(`
+    INSERT INTO agent_drafts (id, task_id, output_json, created_at)
+    VALUES (@id, @taskId, @outputJson, @createdAt)
+  `)
+  const listDrafts = database.prepare(
+    'SELECT id, task_id, output_json, created_at FROM agent_drafts ORDER BY created_at DESC LIMIT ?',
   )
   const getWorkflowState = database.prepare('SELECT state_json FROM workflow_sessions WHERE workflow_id = ?')
   const saveWorkflowState = database.prepare(`
@@ -207,6 +237,15 @@ export function createHorusStore(dataDirectory: string): HorusStore {
     listRawSnapshots(limit = 50) {
       const rows = listSnapshots.all(limit) as { id: string; source: string; retrieved_at: string }[]
       return rows.map((row) => ({ id: row.id, source: row.source, retrievedAt: row.retrieved_at }))
+    },
+    saveAgentDraft(input) {
+      const id = `draft_${crypto.randomUUID()}`
+      insertDraft.run({ id, taskId: input.taskId, outputJson: stablePayload(input.output), createdAt: input.createdAt })
+      return { id }
+    },
+    listAgentDrafts(limit = 50) {
+      const rows = listDrafts.all(limit) as { id: string; task_id: string; output_json: string; created_at: string }[]
+      return rows.map((row) => ({ id: row.id, taskId: row.task_id, output: JSON.parse(row.output_json), createdAt: row.created_at }))
     },
     getFoundationStatus() {
       const rawSnapshotCount = (database.prepare('SELECT COUNT(*) AS count FROM raw_snapshots').get() as { count: number }).count

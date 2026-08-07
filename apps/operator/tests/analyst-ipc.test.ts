@@ -88,6 +88,64 @@ describe('runOpportunityAnalyst', () => {
     expect(result.detail).toContain('raw_never_supplied')
   })
 
+  it('persists a draft only after the output has passed parseAnalystOutput (DEC-067)', async () => {
+    const runtime = runtimeThatReturns((task) => ({
+      status: 'awaiting_operator_review',
+      record: fakeRecord(task),
+      output: {
+        observations: [{ candidateId: 'c1', signal: 'Rated 4.8.', kind: 'observed', evidenceSnapshotIds: ['raw_1'] }],
+        proposedForReview: [],
+        missingInformation: [],
+      },
+    }))
+    const saved: unknown[] = []
+    const saveDraft = (draft: unknown) => {
+      saved.push(draft)
+      return { id: 'draft_1' }
+    }
+
+    const result = await runOpportunityAnalyst({
+      runtime,
+      evidence,
+      taskId: 'ipc-test-draft',
+      saveDraft,
+      now: () => new Date('2026-08-07T12:00:00.000Z'),
+    })
+
+    expect(result.status).toBe('awaiting_operator_review')
+    if (result.status !== 'awaiting_operator_review') throw new Error('unreachable')
+    expect(result.draftId).toBe('draft_1')
+    expect(saved).toEqual([
+      {
+        taskId: 'ipc-test-draft',
+        createdAt: '2026-08-07T12:00:00.000Z',
+        output: result.output,
+      },
+    ])
+  })
+
+  it('never calls saveDraft when the run failed or the output was invalid', async () => {
+    let called = false
+    const saveDraft = () => { called = true; return { id: 'should-not-happen' } }
+
+    const failedRuntime = runtimeThatReturns((task) => ({
+      status: 'failed',
+      record: fakeRecord(task),
+      reason: 'timeout',
+      detail: 'x',
+    }))
+    await runOpportunityAnalyst({ runtime: failedRuntime, evidence, taskId: 'ipc-test-nosave-1', saveDraft })
+    expect(called).toBe(false)
+
+    const invalidOutputRuntime = runtimeThatReturns((task) => ({
+      status: 'awaiting_operator_review',
+      record: fakeRecord(task),
+      output: { observations: 'not an array', proposedForReview: [], missingInformation: [] },
+    }))
+    await runOpportunityAnalyst({ runtime: invalidOutputRuntime, evidence, taskId: 'ipc-test-nosave-2', saveDraft })
+    expect(called).toBe(false)
+  })
+
   it('rejects an empty evidence list before contacting the runtime at all', async () => {
     let contacted = false
     const runtime = runtimeThatReturns((task) => {

@@ -59,12 +59,20 @@ app.whenReady().then(() => {
     }),
   })
   ipcMain.handle('agent:analyst:list-evidence', () => store.listRawSnapshots())
+  ipcMain.handle('agent:analyst:list-drafts', () => store.listAgentDrafts())
   ipcMain.handle('agent:analyst:availability', () => analystRuntime.checkAvailability())
   ipcMain.handle('agent:analyst:run', (_event, evidence: { snapshotId: string; source: string; retrievedAt: string }[]) =>
     // Any rejection here (malformed evidence, per assertTaskIsBounded) reaches
     // the renderer as a rejected promise, exactly like `workflow:representative:save`
     // below — the UI is responsible for surfacing it, not this handler.
-    runOpportunityAnalyst({ runtime: analystRuntime, evidence, taskId: `analyst_${Date.now()}` }),
+    // `saveDraft` (DEC-067) only ever receives output that already passed
+    // parseAnalystOutput inside runOpportunityAnalyst — never the raw run.
+    runOpportunityAnalyst({
+      runtime: analystRuntime,
+      evidence,
+      taskId: `analyst_${Date.now()}`,
+      saveDraft: (draft) => store.saveAgentDraft(draft),
+    }),
   )
   ipcMain.handle('workflow:representative:get', () => store.getWorkflowState('representative-local-v1'))
   ipcMain.handle('workflow:representative:save', (_event, state: unknown) => {

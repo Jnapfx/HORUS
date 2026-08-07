@@ -102,6 +102,31 @@ describe('local evidence store', () => {
     store.close()
   })
 
+  it('saves and lists agent drafts, newest first (DEC-067)', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+
+    const older = store.saveAgentDraft({
+      taskId: 'task_1',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      output: { observations: [], proposedForReview: [], missingInformation: ['no website snapshot'] },
+    })
+    const newer = store.saveAgentDraft({
+      taskId: 'task_2',
+      createdAt: '2026-08-07T00:00:00.000Z',
+      output: { observations: [{ candidateId: 'c1', signal: 's', kind: 'observed', evidenceSnapshotIds: ['raw_1'] }], proposedForReview: [], missingInformation: [] },
+    })
+
+    const listed = store.listAgentDrafts()
+
+    expect(listed).toHaveLength(2)
+    expect(listed[0]).toMatchObject({ id: newer.id, taskId: 'task_2' })
+    expect(listed[1]).toMatchObject({ id: older.id, taskId: 'task_1' })
+    expect(listed[0]!.output).toMatchObject({ observations: [{ candidateId: 'c1' }] })
+    store.close()
+  })
+
   it('resumes a workflow snapshot while retaining its append-only history', () => {
     const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
     temporaryDirectories.push(dataDirectory)

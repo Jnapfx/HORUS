@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('horus', {
   },
   agent: {
     listEvidence: () => ipcRenderer.invoke('agent:analyst:list-evidence'),
+    listDrafts: () => ipcRenderer.invoke('agent:analyst:list-drafts'),
     checkAvailability: () => ipcRenderer.invoke('agent:analyst:availability'),
     runAnalyst: (evidence: { snapshotId: string; source: string; retrievedAt: string }[]) =>
       ipcRenderer.invoke('agent:analyst:run', evidence),

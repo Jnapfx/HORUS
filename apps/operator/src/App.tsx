@@ -104,6 +104,8 @@ type AnalystRunResult = NonNullable<Window['horus']>['agent']['runAnalyst'] exte
  * operator judges what, if anything, to do with the result; per DEC-045 no
  * agent output here is treated as authoritative.
  */
+type DraftSummary = { id: string; taskId: string; createdAt: string; output: unknown }
+
 function AnalystPanel() {
   const [open, setOpen] = useState(false)
   const [evidence, setEvidence] = useState<EvidenceSummary[]>([])
@@ -111,10 +113,14 @@ function AnalystPanel() {
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<AnalystRunResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<DraftSummary[]>([])
+
+  const refreshDrafts = () => { void window.horus?.agent.listDrafts().then(setDrafts) }
 
   useEffect(() => {
     if (!open) return
     void window.horus?.agent.listEvidence().then(setEvidence)
+    refreshDrafts()
   }, [open])
 
   const toggle = (id: string) => {
@@ -130,7 +136,7 @@ function AnalystPanel() {
     setError(null)
     setResult(null)
     window.horus?.agent.runAnalyst(chosen)
-      .then((outcome) => setResult(outcome as AnalystRunResult))
+      .then((outcome) => { setResult(outcome as AnalystRunResult); refreshDrafts() })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'The analyst task was rejected.'))
       .finally(() => setRunning(false))
   }
@@ -165,6 +171,7 @@ function AnalystPanel() {
 
       {result?.status === 'awaiting_operator_review' && (
         <div className="analyst-result">
+          {result.draftId && <p className="success">Saved as draft {result.draftId} — a record, not an approval or a state change.</p>}
           <h3>Observations ({result.output.observations.length})</h3>
           <ul>{result.output.observations.map((o, i) => <li key={i}><span className={`kind-${o.kind}`}>{o.kind}</span> {o.signal}</li>)}</ul>
           <h3>Proposed for review ({result.output.proposedForReview.length})</h3>
@@ -173,6 +180,16 @@ function AnalystPanel() {
           <ul>{result.output.missingInformation.map((m, i) => <li key={i}>{m}</li>)}</ul>
         </div>
       )}
+
+      <h3>Saved drafts ({drafts.length})</h3>
+      <p className="notice">A history of past analyst runs. Each entry is exactly what that run produced — nothing here has been reviewed, approved, or acted on.</p>
+      <ul className="draft-list">
+        {drafts.map((draft) => (
+          <li key={draft.id}>
+            <strong>{draft.taskId}</strong> · {draft.createdAt}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

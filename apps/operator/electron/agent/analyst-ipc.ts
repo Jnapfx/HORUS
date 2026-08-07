@@ -7,17 +7,20 @@
  * rest of this codebase's dependency-injection pattern (`SpawnImpl`,
  * `PrepareIsolatedWorkingDirectory`).
  *
- * This function never writes anything. Its result is inert data for the
- * renderer to display; nothing here saves a draft, advances a workflow step,
- * or requests approval. Per DEC-045, only explicit, already-gated operator
- * actions elsewhere in the codebase do that.
+ * This function never advances a workflow step or requests approval. Per
+ * DEC-045, only explicit, already-gated operator actions elsewhere in the
+ * codebase do that. It may persist a draft (DEC-067) — but only through the
+ * optional `saveDraft` callback, and only after `parseAnalystOutput` has
+ * already accepted the result. A run's raw, unvalidated output is never
+ * written anywhere; what `save_agent_draft` resolves to is HORUS's own code
+ * saving what already passed the same validation gate the renderer sees.
  */
 
 import { assertTaskIsBounded, type AgentRunRecord, type EvidenceReference, type LocalAgentRuntime } from './runtime.js'
 import { type AnalystOutput, buildAnalystTask, parseAnalystOutput } from './analyst-task.js'
 
 export type AnalystRunResult =
-  | { status: 'awaiting_operator_review'; record: AgentRunRecord; output: AnalystOutput }
+  | { status: 'awaiting_operator_review'; record: AgentRunRecord; output: AnalystOutput; draftId: string | null }
   | { status: 'failed'; record: AgentRunRecord; reason: string; detail: string }
 
 export async function runOpportunityAnalyst(input: {
@@ -26,6 +29,9 @@ export async function runOpportunityAnalyst(input: {
   taskId: string
   maxTurns?: number
   timeoutMs?: number
+  /** DEC-067. Called only with an already-validated output; omit to skip persistence. */
+  saveDraft?: (draft: { taskId: string; createdAt: string; output: AnalystOutput }) => { id: string }
+  now?: () => Date
 }): Promise<AnalystRunResult> {
   const task = buildAnalystTask({
     taskId: input.taskId,
@@ -44,9 +50,9 @@ export async function runOpportunityAnalyst(input: {
     return { status: 'failed', record: outcome.record, reason: outcome.reason, detail: outcome.detail }
   }
 
+  let parsed: AnalystOutput
   try {
-    const parsed = parseAnalystOutput(outcome.output, task)
-    return { status: 'awaiting_operator_review', record: outcome.record, output: parsed }
+    parsed = parseAnalystOutput(outcome.output, task)
   } catch (error) {
     return {
       status: 'failed',
@@ -55,4 +61,11 @@ export async function runOpportunityAnalyst(input: {
       detail: error instanceof Error ? error.message : String(error),
     }
   }
+
+  const now = input.now ?? (() => new Date())
+  const draftId = input.saveDraft
+    ? input.saveDraft({ taskId: task.taskId, createdAt: now().toISOString(), output: parsed }).id
+    : null
+
+  return { status: 'awaiting_operator_review', record: outcome.record, output: parsed, draftId }
 }
