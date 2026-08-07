@@ -50,6 +50,10 @@ What's left before a real analyst task can run end to end: this test used a hand
 
 **This is the first fully live, end-to-end confirmation of `AGENT_ARCHITECTURE.md` step 3.** Real task built by `buildAnalystTask`, real evidence tool, real spawn (`node-spawn.ts`, DEC-060), real isolated working directory, schema-constrained output, and HORUS's own `parseAnalystOutput` acceptance check — all operating together, against evidence the analyst had never seen before, not a hand-built prompt or a single hand-seeded row.
 
+**Before attempting step 4, checked whether the real Finescape and Sons and SEASONS EATS evidence the roadmap names actually exists anywhere reachable.** It does — `cache/phase5/horus.sqlite`, a separate database from the one the Electron app writes, holding 64 real rows across discovery, reviews, PageSpeed, and manual website-analysis sources. But its `storage_path` values are relative to the repository root, in two different spellings, and the isolated directory DEC-057 deliberately runs the evidence server from is never the repository root — so reading this real evidence would have failed the moment step 4 tried it. DEC-062 adds a `basePath` to `evidence-store.ts`, consulted only for a relative path; every snapshot HORUS's own write path has ever produced is already absolute, so nothing about normal operation changes.
+
+**Proven twice: a unit test, then the real file.** The operator ran `claude -p` from `/tmp/horus-finescape-check` — sharing nothing with the repository — pointed at the actual `cache/phase5/horus.sqlite`. It correctly reported "Position 11: Finescape and Sons," reading the real historical listing from its original, relative-path record. The evidence step 4 needs exists, is real, and is now reachable from an isolated agent run.
+
 Getting there required four corrections that were not in the Phase 6 plan, because **the application had never actually run before**:
 
 - The Electron build emitted one directory too deep, breaking both the dev script and the renderer path (DEC-051).

@@ -74,6 +74,50 @@ describe('read-only evidence store', () => {
     rawReadOnlyHandle.close()
   })
 
+  it('resolves a relative storage_path against basePath, not the process cwd (DEC-062)', () => {
+    // Reproduces the real Phase 5 cache/phase5/horus.sqlite: a database whose
+    // raw_snapshots.storage_path is relative to the repository root, read by a
+    // process running from an unrelated directory (DEC-057's isolated cwd).
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-evidence-store-repo-'))
+    temporaryDirectories.push(repoRoot)
+    const dataDirectory = path.join(repoRoot, 'cache', 'legacy')
+    fs.mkdirSync(dataDirectory, { recursive: true })
+
+    const writeStore = createHorusStore(dataDirectory)
+    const written = writeStore.appendRawSnapshot({
+      source: 'serpapi.google_maps',
+      request: {},
+      retrievedAt: '2026-08-06T22:59:58.018Z',
+      payload: { title: 'Finescape and Sons' },
+    })
+    writeStore.close()
+
+    const databasePath = path.join(dataDirectory, 'horus.sqlite')
+    const relativeStoragePath = path.relative(repoRoot, path.join(dataDirectory, 'raw'))
+    // Rewrite the row's storage_path to a repo-root-relative path, matching how
+    // the legacy database actually records it.
+    const raw = new Database(databasePath)
+    const fileName = path.basename(fs.readdirSync(path.join(dataDirectory, 'raw', 'serpapi_google_maps'))[0]!)
+    raw.prepare('UPDATE raw_snapshots SET storage_path = ? WHERE id = ?').run(
+      path.join(relativeStoragePath, 'serpapi_google_maps', fileName),
+      written.id,
+    )
+    raw.close()
+
+    // An unrelated cwd, nothing like repoRoot — proves basePath is what
+    // resolves the read, not an accidental match with process.cwd().
+    const unrelatedCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-evidence-store-unrelated-'))
+    temporaryDirectories.push(unrelatedCwd)
+
+    const withoutBasePath = openReadOnlyEvidenceStore(databasePath, { basePath: unrelatedCwd })
+    expect(() => withoutBasePath.getSnapshot(written.id)).toThrow()
+    withoutBasePath.close()
+
+    const withBasePath = openReadOnlyEvidenceStore(databasePath, { basePath: repoRoot })
+    expect(withBasePath.getSnapshot(written.id)).toMatchObject({ payload: { title: 'Finescape and Sons' } })
+    withBasePath.close()
+  })
+
   it('refuses to open a database that does not exist rather than creating one', () => {
     const missingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-evidence-store-missing-'))
     temporaryDirectories.push(missingDirectory)

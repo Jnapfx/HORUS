@@ -14,7 +14,10 @@
  * process (`buildClaudeCodeArgs`'s `--mcp-config`), not through arguments a
  * shell could inject:
  *
- *   HORUS_DATABASE_PATH  absolute path to horus.sqlite (required)
+ *   HORUS_DATABASE_PATH    absolute path to horus.sqlite (required)
+ *   HORUS_EVIDENCE_BASE    base directory for resolving a relative
+ *                          storage_path (DEC-062); optional, defaults to this
+ *                          process's own cwd
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -28,7 +31,7 @@ if (!databasePath) {
   process.exit(1)
 }
 
-const store = openReadOnlyEvidenceStore(databasePath)
+const store = openReadOnlyEvidenceStore(databasePath, { basePath: process.env.HORUS_EVIDENCE_BASE })
 
 const server = new McpServer({ name: 'horus-evidence', version: '1.0.0' })
 
