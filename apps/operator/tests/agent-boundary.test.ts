@@ -70,6 +70,17 @@ describe('bounded agent task', () => {
     expect(args[1]).toContain('task_1')
   })
 
+  it('names the actual evidence snapshot ids in the kickoff, not just a count (DEC-061)', () => {
+    // A live run with only "analyze the 2 referenced evidence snapshot(s)"
+    // produced two guessed, nonexistent ids and a correct "cannot find them"
+    // report — a correct response to a prompt that withheld the one thing it
+    // claimed to reference.
+    const args = buildClaudeCodeArgs(task())
+
+    expect(args[1]).toContain('raw_1')
+    expect(args[1]).toContain('raw_2')
+  })
+
   it('locks down tool permissions so a run with no allowed tools can execute none (DEC-058)', () => {
     // A live run showed Claude Code defaults to Bash and file read/write when
     // nothing restricts it. assertTaskIsBounded only validates the task's own

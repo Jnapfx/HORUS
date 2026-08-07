@@ -13,7 +13,8 @@
     "lint": "oxlint src electron tests",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "agent:live-check": "npm run build:electron && tsx scripts/run-analyst-live-check.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

@@ -177,12 +177,18 @@ export type SpawnImpl = (
 /**
  * The `-p` prompt is deliberately minimal. The task's actual rules travel in
  * `--system-prompt`, which replaces Claude Code's default system prompt rather
- * than appending to it (DEC-057). This kickoff only tells the runtime how many
- * evidence references it was given; the references themselves are reached
- * through the `read_evidence_snapshot` tool, not inlined here.
+ * than appending to it (DEC-057). Reaching evidence still goes through the
+ * `read_evidence_snapshot` tool, not by inlining evidence content here — but
+ * DEC-061 found live that the *ids* themselves have to be named somewhere, or
+ * the runtime has no way to know what to ask the tool for. A first live run
+ * with only a count ("analyze the 2 referenced evidence snapshot(s)") produced
+ * two guessed, nonexistent ids and an honest "cannot find them" report — a
+ * correct response to a prompt that had, in fact, withheld the one thing it
+ * claimed to reference.
  */
 export function buildKickoffPrompt(task: BoundedAgentTask): string {
-  return `Task ${task.taskId}: analyze the ${task.evidence.length} referenced evidence snapshot(s) using only the allowed tools, then return the required JSON.`
+  const ids = task.evidence.map((reference) => reference.snapshotId).join(', ')
+  return `Task ${task.taskId}: analyze the following evidence snapshot id(s) using only the allowed tools, then return the required JSON. Evidence snapshot ids: ${ids}`
 }
 
 /**
