@@ -6,7 +6,7 @@ Last updated: 2026-08-06
 
 HORUS is a company being founded. HORUS V1 is the first internal operating system built for it, used by the founder to acquire HORUS's first client.
 
-The repository contains the approved product documents, locally cached calibration evidence, and an executable Electron/React/TypeScript foundation. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; its local SQLite and immutable-evidence foundation is implemented and tested. Phase 5 has produced one publicly reviewable, source-bounded concept demonstration without contacting a business.
+The repository contains the approved product documents, locally cached calibration evidence, and an executable Electron/React/TypeScript foundation. HORUS V1 is fully specified end to end in `PROJECT_CHARTER.md`; its local SQLite and immutable-evidence foundation is implemented and tested. Phase 5 has completed the first real, approval-gated prospect run, including a public source-bounded concept and operator-confirmed manual outreach.
 
 Thirty real businesses have now calibrated the models. The operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged; the remaining unvalidated assumptions are recorded below rather than treated as settled.
 
@@ -24,11 +24,11 @@ Thirty real businesses have now calibrated the models. The operator approved ret
 
 Evidence: [`checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](checkpoints/2026-08-06_phase-4-first-vertical-workflow.md).
 
-**Phase 5 — First Real Use: in progress.** An approved 20-result SerpApi Google Maps search for landscaping in Stamford, Connecticut was retained locally as raw evidence. The operator selected Finescape and Sons after public search indicated no website, and approved a source-bounded static concept. It is publicly available at `https://horus-finescape-concept.pages.dev`; the page has a visible non-official notice, `noindex, nofollow`, no form or contact route, no pricing or testimonial, and no image represented as the business's work. No outreach has been prepared, opened, approved, or sent.
+**Phase 5 — First Real Use: complete and approved** by Javier Napoles on 2026-08-06. An initial Finescape and Sons concept was retired when later review-history evidence scored 48.1/100, below the threshold. A subsequent SEASONS EATS run achieved a conservative lower-bound reputation score of 73.06/100, received the required operator judgment review, and was separately approved for local review and public deployment. Its public concept is `https://horus-seasons-eats-concept.pages.dev`, marked `noindex, nofollow` and without a form or contact route. A fresh public-data check preceded the approved Gmail compose handoff; the operator confirmed manual send. No email was sent by HORUS. The response and next follow-up remain pending tracked work.
 
 Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2026-08-06_phase-5-first-live-concept.md).
 
-Phase 2 turned the approved workflow and calibrated scoring behavior into a reviewed, implementable functional design without selecting technical architecture or writing application code. The retained calibration evidence now gives the interface's evidence presentation and ranking behavior an observed basis.
+**Phase 6 — Validation and Hardening: pending.** It may begin with the learnings from the first real run; it does not authorize additional public concepts or outreach by itself.
 
 ## Completed
 
@@ -78,7 +78,8 @@ Phase 2 turned the approved workflow and calibrated scoring behavior into a revi
 - [x] Validate Cloudflare Dashboard Direct Upload with a 939 B, test-only static HTML asset; deployed without Wrangler or a Cloudflare API token (DEC-043).
 - [x] Execute a real, explicitly approved 20-result landscaping search in Stamford and retain the returned raw evidence locally; the discovery request uses the documented SerpApi Maps query form with the city embedded in `q`.
 - [x] Add a main-process-only SerpApi discovery executor and an automated contract test proving that the API key is never returned in the payload.
-- [x] Publish the approved Finescape and Sons concept to Cloudflare Pages at `https://horus-finescape-concept.pages.dev`; it remains a no-contact, non-official, noindex demonstration (DEC-044).
+- [x] Publish and subsequently retire the Finescape and Sons concept after a documented reputation score below threshold; the retained Cloudflare Pages project now serves no business content.
+- [x] Complete the first qualified real prospect run with SEASONS EATS: evidence-gated qualification, separately approved public concept, fresh outreach evidence, Gmail draft handoff, operator-confirmed manual send, and pending follow-up record.
 
 ## Phase 1 evidence
 
@@ -108,11 +109,11 @@ The complete PageSpeed pass covers 28 of 29 public website URLs in the 30-busine
 
 ## Next
 
-Phase 5 continues with an operator decision: refine the Finescape and Sons concept, or prepare a source-backed outreach for explicit approval. Any outreach requires a fresh-data check at the approval gate and the existing credential-free Gmail compose handoff; no message may be opened or sent without that separate approval.
+Phase 6 may review and harden the process from the completed SEASONS EATS run. The pending SEASONS EATS response should be recorded when the operator reports it. Sunshine Cuisine and Caribbean Bakery & Mini Mart remain separate discovery candidates; reputation, fresh evidence, and explicit approvals remain required before any new outreach.
 
 ## Blockers
 
-**No current technical blocker.** Wrangler 4.119.0 was authenticated through the operator's Cloudflare OAuth flow and used as a one-off direct Pages deployment client; no Wrangler dependency or credential was added to the repository. The outstanding product decision is whether the current concept merits an approved outreach. No business has been contacted.
+**No current technical blocker.** Wrangler 4.119.0 was authenticated through the operator's Cloudflare OAuth flow and used as a one-off direct Pages deployment client; no Wrangler dependency or credential was added to the repository. Cloudflare cannot delete an active production deployment, so the Finescape concept was retired by replacing it with a neutral static page while retaining the Pages project. The SEASONS EATS outreach was sent manually by the operator after a Gmail draft handoff.
 
 ## Known limitations carried forward
 
@@ -149,11 +150,11 @@ These do not block starting. They are what calibration exists to resolve, and th
 | Area | Status |
 | --- | --- |
 | Application code | Electron/React foundation implemented |
-| Tests | 10 automated tests passing |
+| Tests | 25 automated tests passing |
 | Infrastructure | Local SQLite plus immutable JSON evidence manifest |
-| Integrations | Non-production contracts implemented; Gmail handoff browser verification complete with no send |
+| Integrations | Non-production contracts implemented; Gmail compose handoff exercised with operator-confirmed manual send |
 | Design | Functional design and visual baseline approved |
-| Deployment | Cloudflare dashboard test Worker verified; production Pages client unresolved |
+| Deployment | Cloudflare Pages direct deployments verified for bounded public concepts |
 
 ## Update rule
 

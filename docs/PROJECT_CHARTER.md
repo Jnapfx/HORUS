@@ -308,6 +308,8 @@ Score range 0–100. Higher means more opportunity — that is, a weaker current
 
 **Ordering: a poor website outranks a social-only presence, which outranks no website at all** (DEC-033).
 
+A listing URL that resolves to a provider parking or domain-for-sale page without business content is classified as **no website**. A listing that provides only a social-media profile, without a business website, is also classified as **no website**. Either is an automatic discovery candidate because the absence is directly observable. A temporary unreachable URL remains `insufficient_data`, never `no website`.
+
 The reasoning is commercial rather than technical. A business with a bad site has already decided that having a website matters and has spent money proving it — the conversation is "what you have is working against you," and the existing site supplies the services, positioning, and tone needed to build the demonstration. A business with nothing requires selling the idea of a website first, which is a longer conversation with less material to work from. Social-only sits between: they have demonstrated they value being findable, but have not yet invested in a site of their own.
 
 The constants place a genuinely broken site (above 60) ahead of both, and a merely dated but functional site (typically under 20) behind both — correctly, since that business has little to gain and is a poor prospect regardless of ordering philosophy.
@@ -403,6 +405,8 @@ These are absences, which makes them cheaper to detect than most defects but eas
 The presence principle from section 9.6 applies here too: **a failed check proves nothing about the site.**
 
 - **Site unreachable at the time of retrieval:** recorded as `insufficient_data`, re-checkable. It is *not* scored as a broken site, and *not* treated as "no website" — a temporary outage must never be presented to a business owner as evidence their site is broken.
+- **Provider parking or domain-for-sale destination:** when the listing URL resolves to such a page and no business content is present, it is recorded as `no_website` with the redirect evidence. It becomes an automatic discovery candidate, but reputation remains required before publication or outreach.
+- **Social-only destination:** when the listing provides only a social profile and no business website, it is recorded as `no_website`. It becomes an automatic discovery candidate, but reputation remains required before publication or outreach.
 - **Crawling restricted by the site's own rules:** those rules are respected. The factors that cannot be evaluated are recorded as unmeasured, and the score is marked `partial_data` and treated as a lower bound.
 - **Any factor unmeasurable:** it contributes 0 and is marked unmeasured. Absence of measurement is never evidence of a defect.
 
@@ -488,7 +492,7 @@ Businesses are evaluated cheapest-first, and expensive checks run only on those 
 2. Apply gates G1 and G2 from listing-level data — rating and review count arrive free with the candidate result.
 3. Retrieve review history only for survivors, newest first, stopping at the 365-day boundary (section 13.2).
 4. Apply the remaining gates and auto-rejects, then score reputation (section 9). Discard anything below 70.
-5. **Only then** run web analysis (section 10) on the reputation-qualified set, including the PageSpeed Insights call.
+5. **Only then** run web analysis (section 10) on the reputation-qualified set, including the PageSpeed Insights call. A provider-parking/no-website observation may be recorded earlier as an automatic discovery candidate; broader web analysis before qualification requires explicit operator selection and never permits publication or outreach.
 6. Group by proximity band and rank (section 11).
 
 Each stage is more expensive than the last, so each runs on a smaller set. Review retrieval costs API credits per business; web analysis costs an external call and page execution per business. Filtering on free listing data first is what makes a search affordable.

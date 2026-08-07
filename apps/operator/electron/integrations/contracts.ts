@@ -1,4 +1,4 @@
-export type IntegrationId = 'serpapi' | 'pagespeed' | 'gmail-compose' | 'cloudflare-dashboard'
+export type IntegrationId = 'serpapi' | 'pagespeed' | 'website-analysis' | 'gmail-compose' | 'cloudflare-dashboard'
 
 export type IntegrationContract = {
   id: IntegrationId
@@ -24,6 +24,14 @@ const contracts: readonly IntegrationContract[] = [
     execution: 'main-process-only',
     credentialBoundary: 'local-main-process',
     approvalRequirement: 'Run only for a selected candidate in a future explicit analysis command.',
+    rawEvidenceRequirement: 'required',
+  },
+  {
+    id: 'website-analysis',
+    label: 'Public website structure and interaction analysis',
+    execution: 'main-process-only',
+    credentialBoundary: 'no-credential',
+    approvalRequirement: 'Run only for a reputation-qualified selected candidate, or for provider-parking evidence explicitly selected by the operator; respect site restrictions and do not submit forms. Reputation still blocks publication and outreach.',
     rawEvidenceRequirement: 'required',
   },
   {

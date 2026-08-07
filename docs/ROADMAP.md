@@ -80,22 +80,24 @@ Outcome: the operator can complete the primary workflow from start to finish.
 
 **Exit criterion:** met and approved on 2026-08-06.
 
-## Phase 5 — First Real Use · in progress
+## Phase 5 — First Real Use · complete
 
 Outcome: one qualified prospect, one live demonstration, one approved outreach, one tracked opportunity.
 
 This is the success criterion of charter section 5, and the reason the project exists.
 
 - [x] Run a real 20-result landscaping search in Stamford, Connecticut, with raw responses cached locally.
-- [x] Select Finescape and Sons as a no-website opportunity, review public-source evidence, and approve a bounded concept demonstration.
-- [x] Publish the concept at `https://horus-finescape-concept.pages.dev`, with a non-official notice and `noindex, nofollow`.
-- [ ] Prepare, approve, and send outreach; no outreach has been opened or sent.
-- [ ] Record the outcome and the next follow-up action.
-- [ ] Compare what happened against the assumptions made in Phase 0.
+- [x] Select Finescape and Sons as a no-website opportunity, review public-source evidence, and approve a bounded concept demonstration; later reputation evidence scored it below threshold, so it was not pursued.
+- [x] Publish and retire a bounded no-contact concept at `https://horus-finescape-concept.pages.dev`; the retained project now serves a neutral noindex page with no business content.
+- [x] Qualify SEASONS EATS from fresh public evidence at a conservative 73.06/100 lower bound, with the operator accepting the required judgment review.
+- [x] Prepare, locally approve, publish, and verify the bounded public `noindex` concept at `https://horus-seasons-eats-concept.pages.dev`.
+- [x] Prepare and approve an outreach draft; hand it off to Gmail without sending automatically. The operator confirmed manual send.
+- [x] Record the sent confirmation and next action: await a response, then record and assess it.
+- [x] Compare the run with Phase 0 assumptions: approval gates, source bounds, fresh-at-contact evidence, and operator-declared send status all held in practice.
 
-Evidence to date: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2026-08-06_phase-5-first-live-concept.md).
+Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2026-08-06_phase-5-first-live-concept.md).
 
-**Exit criterion:** the V1 success criteria have been measured against one real run.
+**Exit criterion:** met. The V1 success criteria were measured against one real, operator-approved run. A business response is a tracked sales outcome, not a prerequisite for closing this phase.
 
 ## Phase 6 — Validation and Hardening
 

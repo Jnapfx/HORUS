@@ -38,6 +38,7 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 - A main-process-only SerpApi discovery executor, with a contract test that verifies key handling and the Google Maps city-in-query request shape.
 - The source-bounded Finescape and Sons concept at `https://horus-finescape-concept.pages.dev`, including a visible non-official notice, `noindex, nofollow`, no contact route, and no unsupported claims.
 - Phase 5 in-progress checkpoint: `docs/checkpoints/2026-08-06_phase-5-first-live-concept.md`.
+- First completed real-use run: SEASONS EATS qualification with a conservative 73.06/100 lower-bound score, a separately approved and bounded public `noindex` concept, fresh-data validation, Gmail compose handoff, operator-confirmed manual send, and a pending follow-up record.
 
 ### Changed
 
@@ -53,4 +54,6 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 - Search defaults lowered: `TARGET_QUALIFIED` 10→5, `MAX_EXAMINED` 100→60 (DEC-032).
 - Charter section 8 now lists no questions blocking development.
 - `DESIGN_REFERENCES.md` updated to separate the operator interface from the demonstration websites, which have different audiences and constraints.
-- Phase 5 moved to in progress after a real 20-result Stamford landscaping search, explicit concept approval, and verified Cloudflare Pages publication. Outreach remains unprepared and unsent.
+- Phase 5 began with a real 20-result Stamford landscaping search, explicit concept approval, and verified Cloudflare Pages publication; its later retirement and completed real-use outcome are recorded below.
+- The Finescape and Sons concept was retired after its newly retrieved review history produced a 48.1/100 reputation score, below the 70-point threshold. The retained Pages project now serves a neutral noindex page without business content.
+- Phase 5 — First Real Use is complete. Its checkpoint now records both the safely retired below-threshold experiment and the fully approval-gated SEASONS EATS run; a business response remains an open tracked outcome rather than an assumed result.

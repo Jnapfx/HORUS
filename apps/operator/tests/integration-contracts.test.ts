@@ -26,7 +26,9 @@ describe('non-production integration contracts', () => {
   it('exposes contract metadata without exposing credentials', () => {
     const contracts = listIntegrationContracts()
 
-    expect(contracts.map((contract) => contract.id)).toEqual(['serpapi', 'pagespeed', 'gmail-compose', 'cloudflare-dashboard'])
+    expect(contracts.map((contract) => contract.id)).toEqual(['serpapi', 'pagespeed', 'website-analysis', 'gmail-compose', 'cloudflare-dashboard'])
+    expect(contracts.find((contract) => contract.id === 'website-analysis')?.approvalRequirement).toContain('do not submit forms')
+    expect(contracts.find((contract) => contract.id === 'website-analysis')?.approvalRequirement).toContain('provider-parking')
     expect(contracts.every((contract) => !JSON.stringify(contract).includes('api_key'))).toBe(true)
   })
 

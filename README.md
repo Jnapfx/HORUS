@@ -2,7 +2,7 @@
 
 A clean repository for designing and building HORUS V1 with traceability from day one.
 
-> Status: **Phases 0–4 complete and approved; Phase 5 in progress** (Javier Napoles, 2026-08-05–06). The local Electron/React foundation now has a verified first live concept publication, with no outreach or business contact yet made.
+> Status: **Phases 0–5 complete and approved; Phase 6 pending** (Javier Napoles, 2026-08-05–06). HORUS has completed its first real, approval-gated prospect run: a qualified business, a source-bounded public concept, and a manually sent, tracked outreach.
 
 ## What this is
 
@@ -56,8 +56,8 @@ Copy `config/local.json.example` to `config/local.json` and fill it in. That fil
 
 ## Next step
 
-**Phase 5 — First Real Use** is in progress. A real 20-result landscaping search in Stamford, Connecticut informed the selection of Finescape and Sons; its approved, source-bounded concept is live at [horus-finescape-concept.pages.dev](https://horus-finescape-concept.pages.dev). The concept carries a visible non-official notice and `noindex, nofollow`; it contains no form, contact route, pricing, testimonial, or unsupported claim. No outreach has been prepared, approved, or sent.
+**Phase 5 — First Real Use** is complete. The initial Finescape and Sons concept was correctly retired after its review-history evidence scored below the qualification threshold. A subsequent SEASONS EATS run met the required gates with a conservative 73.06/100 lower-bound reputation score, received operator approval, and was published as a bounded, public `noindex` concept: [horus-seasons-eats-concept.pages.dev](https://horus-seasons-eats-concept.pages.dev). After a fresh public-data check, the operator approved a Gmail compose handoff and confirmed sending the outreach manually. The response and next follow-up remain tracked work, not an implied outcome.
 
-The next operator decision is whether to refine the concept and pursue an approved outreach handoff. Any contact still requires fresh evidence and its own explicit approval.
+The next authorized work is **Phase 6 — Validation and Hardening**: review the real-use learnings, preserve the approval and evidence boundaries, and improve repeatability before running further prospects.
 
-Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md), [`docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md), and the in-progress Phase 5 milestone [`docs/checkpoints/2026-08-06_phase-5-first-live-concept.md`](docs/checkpoints/2026-08-06_phase-5-first-live-concept.md).
+Evidence of completed work: [`docs/checkpoints/2026-08-05_phase-0-definition.md`](docs/checkpoints/2026-08-05_phase-0-definition.md), [`docs/checkpoints/2026-08-05_phase-1-calibration.md`](docs/checkpoints/2026-08-05_phase-1-calibration.md), [`docs/checkpoints/2026-08-06_phase-2-functional-design.md`](docs/checkpoints/2026-08-06_phase-2-functional-design.md), [`docs/checkpoints/2026-08-06_phase-3-technical-foundation.md`](docs/checkpoints/2026-08-06_phase-3-technical-foundation.md), [`docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](docs/checkpoints/2026-08-06_phase-4-first-vertical-workflow.md), and [`docs/checkpoints/2026-08-06_phase-5-first-live-concept.md`](docs/checkpoints/2026-08-06_phase-5-first-live-concept.md).
