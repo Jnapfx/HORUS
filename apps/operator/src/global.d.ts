@@ -25,6 +25,26 @@ declare global {
         getRepresentative: () => Promise<VerticalWorkflowState | null>
         saveRepresentative: (state: VerticalWorkflowState) => Promise<void>
       }
+      /** DEC-065. The analyst boundary, exposed for the first time to the renderer. */
+      agent: {
+        listEvidence: () => Promise<Array<{ id: string; source: string; retrievedAt: string }>>
+        checkAvailability: () => Promise<
+          | { available: true; runtimeId: string; version: string }
+          | { available: false; reason: string; detail: string }
+        >
+        runAnalyst: (evidence: Array<{ snapshotId: string; source: string; retrievedAt: string }>) => Promise<
+          | {
+              status: 'awaiting_operator_review'
+              record: unknown
+              output: {
+                observations: Array<{ candidateId: string; signal: string; kind: 'observed' | 'insufficient_data'; evidenceSnapshotIds: readonly string[] }>
+                proposedForReview: Array<{ candidateId: string; rationale: string; evidenceSnapshotIds: readonly string[] }>
+                missingInformation: readonly string[]
+              }
+            }
+          | { status: 'failed'; record: unknown; reason: string; detail: string }
+        >
+      }
     }
   }
 }

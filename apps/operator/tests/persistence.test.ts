@@ -57,6 +57,51 @@ describe('local evidence store', () => {
     store.close()
   })
 
+  it('lists raw snapshots newest first without exposing payload content', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+
+    const older = store.appendRawSnapshot({
+      source: 'serpapi',
+      request: {},
+      retrievedAt: '2026-08-01T00:00:00.000Z',
+      payload: { secret: 'should not appear in the listing' },
+    })
+    const newer = store.appendRawSnapshot({
+      source: 'pagespeed',
+      request: {},
+      retrievedAt: '2026-08-07T00:00:00.000Z',
+      payload: { performanceScore: 41 },
+    })
+
+    const listed = store.listRawSnapshots()
+
+    expect(listed).toEqual([
+      { id: newer.id, source: 'pagespeed', retrievedAt: '2026-08-07T00:00:00.000Z' },
+      { id: older.id, source: 'serpapi', retrievedAt: '2026-08-01T00:00:00.000Z' },
+    ])
+    expect(JSON.stringify(listed)).not.toContain('secret')
+    store.close()
+  })
+
+  it('honors the limit passed to listRawSnapshots', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+    for (let i = 0; i < 5; i += 1) {
+      store.appendRawSnapshot({
+        source: 'serpapi',
+        request: {},
+        retrievedAt: `2026-08-0${i + 1}T00:00:00.000Z`,
+        payload: { i },
+      })
+    }
+
+    expect(store.listRawSnapshots(2)).toHaveLength(2)
+    store.close()
+  })
+
   it('resumes a workflow snapshot while retaining its append-only history', () => {
     const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
     temporaryDirectories.push(dataDirectory)

@@ -17,12 +17,22 @@ export type FoundationStatus = {
   eventCount: number
 }
 
+export type RawSnapshotSummary = { id: string; source: string; retrievedAt: string }
+
 export type HorusStore = {
   appendRawSnapshot: (input: RawSnapshotInput) => { id: string; path: string; payloadHash: string }
   appendEvent: (input: { aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }) => string
   getWorkflowState: (workflowId: string) => unknown | null
   saveWorkflowState: (input: { workflowId: string; state: unknown; updatedAt: string }) => void
   getFoundationStatus: () => FoundationStatus
+  /**
+   * Read-only listing, most recent first. Exists so a caller — the analyst IPC
+   * wiring, in particular — can offer the operator a real choice of retained
+   * evidence instead of requiring snapshot ids to already be known. Never
+   * exposes payload content: that stays behind `read_evidence_snapshot`
+   * (DEC-059), which enforces its own read-only guarantee independently.
+   */
+  listRawSnapshots: (limit?: number) => readonly RawSnapshotSummary[]
   close: () => void
 }
 
@@ -129,6 +139,9 @@ export function createHorusStore(dataDirectory: string): HorusStore {
       (id, aggregate_type, aggregate_id, event_type, payload_json, occurred_at)
     VALUES (@id, @aggregateType, @aggregateId, @eventType, @payloadJson, @occurredAt)
   `)
+  const listSnapshots = database.prepare(
+    'SELECT id, source, retrieved_at FROM raw_snapshots ORDER BY retrieved_at DESC LIMIT ?',
+  )
   const getWorkflowState = database.prepare('SELECT state_json FROM workflow_sessions WHERE workflow_id = ?')
   const saveWorkflowState = database.prepare(`
     INSERT INTO workflow_sessions (workflow_id, state_json, updated_at)
@@ -190,6 +203,10 @@ export function createHorusStore(dataDirectory: string): HorusStore {
         payload: input.state,
         occurredAt: input.updatedAt,
       })
+    },
+    listRawSnapshots(limit = 50) {
+      const rows = listSnapshots.all(limit) as { id: string; source: string; retrieved_at: string }[]
+      return rows.map((row) => ({ id: row.id, source: row.source, retrievedAt: row.retrieved_at }))
     },
     getFoundationStatus() {
       const rawSnapshotCount = (database.prepare('SELECT COUNT(*) AS count FROM raw_snapshots').get() as { count: number }).count

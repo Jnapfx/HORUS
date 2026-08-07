@@ -25,4 +25,10 @@ contextBridge.exposeInMainWorld('horus', {
     getRepresentative: () => ipcRenderer.invoke('workflow:representative:get'),
     saveRepresentative: (state: unknown) => ipcRenderer.invoke('workflow:representative:save', state),
   },
+  agent: {
+    listEvidence: () => ipcRenderer.invoke('agent:analyst:list-evidence'),
+    checkAvailability: () => ipcRenderer.invoke('agent:analyst:availability'),
+    runAnalyst: (evidence: { snapshotId: string; source: string; retrievedAt: string }[]) =>
+      ipcRenderer.invoke('agent:analyst:run', evidence),
+  },
 })
