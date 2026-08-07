@@ -185,21 +185,48 @@ export function buildKickoffPrompt(task: BoundedAgentTask): string {
   return `Task ${task.taskId}: analyze the ${task.evidence.length} referenced evidence snapshot(s) using only the allowed tools, then return the required JSON.`
 }
 
-export function buildClaudeCodeArgs(task: BoundedAgentTask): readonly string[] {
+/**
+ * DEC-059. Describes one real MCP server this runtime can offer a task, and how
+ * a `BoundedAgentTask.allowedTools` entry maps onto the `mcp__<server>__<tool>`
+ * name Claude Code expects (see section "Tool naming convention" in Anthropic's
+ * MCP docs). `toolNameMap` only ever grows entries for tools that genuinely
+ * exist behind `command`; a task naming a tool with no entry here gets nothing
+ * added to `--allowedTools` for it; `--permission-mode dontAsk` then denies it,
+ * exactly as DEC-058 describes for every tool that isn't wired yet.
+ */
+export type McpServerWiring = {
+  serverName: string
+  command: string
+  args: readonly string[]
+  env: Readonly<Record<string, string>>
+  toolNameMap: ReadonlyMap<string, string>
+}
+
+function buildMcpConfigArgs(task: BoundedAgentTask, wiring: McpServerWiring | undefined): readonly string[] {
+  if (!wiring) return []
+
+  const allowed = task.allowedTools
+    .map((tool) => wiring.toolNameMap.get(tool))
+    .filter((name): name is string => name !== undefined)
+  if (allowed.length === 0) return []
+
+  const mcpConfig = {
+    mcpServers: {
+      [wiring.serverName]: { command: wiring.command, args: [...wiring.args], env: { ...wiring.env } },
+    },
+  }
+  return ['--mcp-config', JSON.stringify(mcpConfig), '--allowedTools', allowed.join(',')]
+}
+
+export function buildClaudeCodeArgs(task: BoundedAgentTask, evidenceTools?: McpServerWiring): readonly string[] {
   // Deliberately no `--bare`: it would bypass the subscription login and demand
   // an API key, which DEC-045 refuses. --system-prompt and the isolated cwd
   // (DEC-057) are what make that safe to omit.
   //
-  // DEC-058: a live run showed `assertTaskIsBounded`'s check of `task.allowedTools`
-  // was validating data on the `BoundedAgentTask` object only — it never reached
-  // Claude Code's actual permission surface, which defaults to Bash and file
-  // read/write. `--permission-mode dontAsk` denies anything not explicitly
-  // allowed, so a run that names no allowed tools here can execute none. HORUS
-  // has no real evidence-reading tools implemented yet (`read_evidence_snapshot`
-  // and the rest of ANALYST_TOOLS are names in this codebase, not registered MCP
-  // tools), so passing `--allowedTools` with those names would currently permit
-  // nothing meaningful. The stronger, correct fix — wiring real tools through an
-  // MCP server and allow-listing exactly those — is deferred; see DEC-058.
+  // `--permission-mode dontAsk` denies anything not explicitly allowed (DEC-058).
+  // `evidenceTools`, when supplied, is the one real capability allow-listed on
+  // top of that floor (DEC-059); everything else in task.allowedTools that has
+  // no wiring here still resolves to no access, exactly as DEC-058 documented.
   return [
     '-p',
     buildKickoffPrompt(task),
@@ -213,6 +240,7 @@ export function buildClaudeCodeArgs(task: BoundedAgentTask): readonly string[] {
     String(task.limits.maxTurns),
     '--permission-mode',
     'dontAsk',
+    ...buildMcpConfigArgs(task, evidenceTools),
   ]
 }
 
@@ -264,6 +292,8 @@ export type ClaudeCodeRuntimeOptions = {
   prepareWorkingDirectory: PrepareIsolatedWorkingDirectory
   executable?: string
   now?: () => Date
+  /** DEC-059. Omit to run with no real tools available, per DEC-058. */
+  evidenceTools?: McpServerWiring
 }
 
 export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): LocalAgentRuntime {
@@ -302,7 +332,8 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Loca
       }
 
       const cwd = await options.prepareWorkingDirectory(task.taskId)
-      const result = await options.spawnImpl(executable, buildClaudeCodeArgs(task), { timeoutMs: task.limits.timeoutMs, cwd })
+      const args = buildClaudeCodeArgs(task, options.evidenceTools)
+      const result = await options.spawnImpl(executable, args, { timeoutMs: task.limits.timeoutMs, cwd })
       const completedAt = now().toISOString()
 
       const emptyMetadata = { completedAt, turnsUsed: null, sessionId: null, totalCostUsd: null }

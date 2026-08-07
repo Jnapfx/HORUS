@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ANALYST_TOOLS, buildAnalystTask, parseAnalystOutput } from '../electron/agent/analyst-task'
+import { createEvidenceToolWiring } from '../electron/agent/evidence-tool-wiring'
 import {
   AgentTaskRejected,
   assertTaskIsBounded,
   buildClaudeCodeArgs,
   classifyFailure,
   createClaudeCodeRuntime,
+  type McpServerWiring,
   type SpawnImpl,
   type SpawnResult,
 } from '../electron/agent/runtime'
@@ -77,6 +79,49 @@ describe('bounded agent task', () => {
     const modeIndex = args.indexOf('--permission-mode')
     expect(modeIndex).toBeGreaterThan(-1)
     expect(args[modeIndex + 1]).toBe('dontAsk')
+  })
+
+  it('grants no MCP tool when no evidenceTools wiring is supplied (DEC-058 baseline)', () => {
+    const args = buildClaudeCodeArgs(task())
+
+    expect(args).not.toContain('--mcp-config')
+    expect(args).not.toContain('--allowedTools')
+  })
+
+  it('allow-lists exactly the mapped evidence tool when wiring is supplied (DEC-059)', () => {
+    const wiring = createEvidenceToolWiring({
+      serverScriptPath: '/app/build/electron/agent/evidence-mcp-server.js',
+      databasePath: '/app/data/horus.sqlite',
+    })
+
+    const args = buildClaudeCodeArgs(task(), wiring)
+
+    const mcpConfigIndex = args.indexOf('--mcp-config')
+    expect(mcpConfigIndex).toBeGreaterThan(-1)
+    const mcpConfig = JSON.parse(args[mcpConfigIndex + 1] as string)
+    expect(mcpConfig.mcpServers['horus-evidence']).toMatchObject({
+      command: 'node',
+      args: ['/app/build/electron/agent/evidence-mcp-server.js'],
+      env: { HORUS_DATABASE_PATH: '/app/data/horus.sqlite' },
+    })
+
+    const allowedToolsIndex = args.indexOf('--allowedTools')
+    expect(allowedToolsIndex).toBeGreaterThan(-1)
+    expect(args[allowedToolsIndex + 1]).toBe('mcp__horus-evidence__read_evidence_snapshot')
+  })
+
+  it('grants nothing for a wired server if the task never named the tool', () => {
+    const wiring: McpServerWiring = {
+      serverName: 'horus-evidence',
+      command: 'node',
+      args: ['server.js'],
+      env: {},
+      toolNameMap: new Map([['read_evidence_snapshot', 'mcp__horus-evidence__read_evidence_snapshot']]),
+    }
+    const args = buildClaudeCodeArgs({ ...task(), allowedTools: [] }, wiring)
+
+    expect(args).not.toContain('--mcp-config')
+    expect(args).not.toContain('--allowedTools')
   })
 
   it('never runs from the HORUS repository, or any directory containing CLAUDE.md', async () => {
