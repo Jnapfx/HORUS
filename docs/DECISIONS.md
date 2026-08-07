@@ -439,6 +439,141 @@ This file serves as an index. Complex decisions may later be moved to individual
 - Sources: Anthropic's Claude Code setup and Agent SDK documentation, verified 2026-08-07, document eligible subscription authentication, non-interactive/programmatic execution, structured output, tools, permissions, and sessions.
 - Supersedes: not applicable
 
+## Phase 6 — proposed, not approved
+
+The five decisions below were drafted alongside the Phase 6 foundation corrections. **None has been approved by the operator, and none has been executed or verified on a machine that can run the test suite.** They are recorded as proposals so the reasoning is reviewable before it becomes history. Approve, revise, or reject them; do not treat them as settled.
+
+### DEC-046 — SerpApi provenance records that a credential was used, never its value
+
+- Date: 2026-08-07
+- Status: proposed
+- Context: `executeSerpApiDiscovery` built the request URL, set `api_key` on it, and returned `requestUrl.toString()` with the credential still attached. `appendRawSnapshot` writes its `request` argument into `raw_snapshots.request_json` and into the raw JSON file on disk, so the operator's SerpApi key was one ordinary call away from being written into the immutable evidence store. The existing contract test asserted only that the key was absent from `payload`, which was true and beside the point.
+- Options considered: strip the key from the URL before returning it; return only the query object and let the caller rebuild; return the full URL and require every caller to redact; hash the key into an opaque identifier.
+- Decision: the executed URL and the provenance URL are built as two separate objects. The provenance copy is taken before the credential is ever set and then records `api_key=REDACTED_SERPAPI_KEY`, so no code path can serialise the real value. `executeSerpApiDiscovery` also now returns `retrievedAt`, because the caller needs it for the snapshot record and should not invent one.
+- Consequences: provenance still proves a credentialled request was made, and remains reproducible except for the secret. The returned `requestUrl` is no longer sufficient to replay the request by itself, which is intended. Any future integration that carries a credential must follow the same two-object pattern; the contract test now asserts against the whole returned object rather than one field.
+- Supersedes: not applicable
+
+### DEC-047 — A retrieval is its own record, separate from the content it returned
+
+- Date: 2026-08-07
+- Status: proposed
+- Context: `raw_snapshots` declared `payload_hash` UNIQUE, derived the row id from that hash, and inserted with `INSERT OR IGNORE`. Retrieving identical content a second time was therefore discarded silently: no second row and no second `retrieved_at`. This contradicts the storage rule that a later retrieval creates a new snapshot beside the old one, and it can starve DEC-021's 30-day freshness check of the current retrieval timestamp it depends on — a business whose listing has not changed would appear to have no recent evidence.
+- Options considered: keep content-addressed deduplication and accept the loss; add a separate retrievals table alongside the deduplicated content table; make each row a retrieval and keep content addressed by hash on disk; store the payload again per retrieval.
+- Decision: one row per retrieval, with a UUID id. `payload_hash` becomes a non-unique pointer to a content-addressed file that is still written only once, because deduplicating bytes is not the same as deduplicating retrievals. Added indexes on `payload_hash` and on `(source, retrieved_at)`. A `PRAGMA user_version` migration rebuilds the table on existing databases so the calibration evidence already on the operator's machine is preserved.
+- Consequences: `rawSnapshotCount` now counts retrievals rather than distinct payloads, so the number in `CURRENT_STATE.md` will move once this runs. Storage on disk does not grow when content is unchanged. The migration rewrites a table that holds real Phase 1 evidence and has not been executed — it should be run against a copy of the database first.
+- Supersedes: not applicable
+
+### DEC-048 — The main process validates workflow state submitted by the renderer
+
+- Date: 2026-08-07
+- Status: proposed
+- Context: `workflow:representative:save` accepted `state: unknown` and wrote it directly to SQLite and to the append-only event log. The renderer sits on the untrusted side of the `contextIsolation` boundary, and the approval-gate guards in `moveWorkflow` live in `src/domain/`, which is renderer code. Every approval flag in the store was therefore renderer-asserted, which is what `AGENT_ARCHITECTURE.md` section 5 says must never be the case.
+- Options considered: leave it, since only HORUS's own renderer calls it today; validate the submitted state in the main process; move the domain module to a shared location imported by both sides; replace state saves with commands so the main process computes every transition itself.
+- Decision: add `electron/workflow-state.ts`, validating structure and comparing each submitted state against the state the main process already holds. Approvals are append-only, stages advance one at a time, and recorded events may only grow. A rejected save is itself written to the event log as `workflow.state_rejected`.
+- Consequences: an approval can no longer be fabricated out of order, revoked, or reached by skipping a stage. It does **not** make the renderer incapable of asserting a single legitimate-looking step; only command-based transitions close that, and that refactor is deliberately not attempted here. The step list is currently declared twice — once in `electron/workflow-state.ts` and once in `src/domain/representative-workflow.ts` — which is duplication accepted temporarily to avoid a cross-directory import that could not be compiled and checked. Consolidating them is the follow-up.
+- Supersedes: not applicable
+
+### DEC-049 — A provider-neutral agent boundary, with the analyst's limits enforced by the parser
+
+- Date: 2026-08-07
+- Status: proposed
+- Context: DEC-045 accepted evaluating Claude Code as the first local runtime and `AGENT_ARCHITECTURE.md` specifies the boundary, but nothing was implemented. Steps 2 and 3 of the Phase 6 validation sequence require the boundary and one bounded analyst task before any replay can happen.
+- Options considered: call Claude Code directly from the main process where it is needed; build the full three-role agent set at once; build the runtime interface plus one analyst task; wait until the runtime can be verified on a machine with Claude Code installed.
+- Decision: add `electron/agent/runtime.ts` (provider-neutral interface, forbidden-tool list, failure taxonomy, injectable spawn) and `electron/agent/analyst-task.ts` (the single bounded task and its output parser). The parser enforces the section 11 acceptance criteria mechanically: a claim citing evidence the task never received is rejected, an uncited claim is rejected, any score-like field is rejected, and an absence may only be recorded as `insufficient_data`.
+- Consequences: the acceptance criteria stop depending on the model's cooperation and become properties of the code. The spawn is injected, in the same style as `fetchImpl`, so the boundary is unit-testable without a Claude Code installation. **The Claude Code command shape, flags, authentication behaviour and error wording are unverified** — `classifyFailure` pattern-matches on messages nobody has observed. Phase 6 step 2 is not complete until that is checked against a real installation, exactly as section 2 requires.
+- Supersedes: not applicable
+
+### DEC-050 — `reputation-scoring-v1` exists in the charter but not in the code
+
+- Date: 2026-08-07
+- Status: proposed — finding recorded, no remedy authorised
+- Context: found while reviewing the repository against its documentation. Charter section 9 specifies six gates, a five-factor 100-point model and a 70-point threshold. `web-opportunity-v2` is fully implemented in `src/domain/web-opportunity-audit.ts`. `reputation-scoring-v1` is not implemented anywhere: the only reputation value in the codebase is the literal `score: 82` in the representative fixture. There is no `scripts/` directory, so the 30-business calibration and the SEASONS EATS lower bound of 73.06 were computed outside the application and cannot be regenerated from this repository.
+- Options considered: implement the model as part of Phase 6; record the gap and leave Phase 6 scoped as documented; leave it undocumented until a later phase.
+- Decision: record the gap and leave it outside Phase 6. Phase 6 is validation and hardening of what exists; implementing the qualification model is new capability and deserves its own authorisation.
+- Consequences: the reputation figures in `CURRENT_STATE.md` and in the Phase 1 and Phase 5 checkpoints remain valid as recorded history, but they are not reproducible from the code, which is in tension with the provenance convention and with `AGENT_ARCHITECTURE.md` acceptance criterion "deterministic scores match recomputation from the stored inputs" — that criterion cannot be met for reputation until the model exists. Until then, no agent replay can check a reputation number against anything.
+- Supersedes: not applicable
+
+### DEC-051 — The Electron build emitted one directory too deep, and the application had never started
+
+- Date: 2026-08-07
+- Status: proposed — corrected and verified by build, not yet by launching the application
+- Context: found while verifying the Phase 6 batch. `tsconfig.electron.json` set `rootDir: "."` with `include: ["electron"]`, so TypeScript preserved the `electron/` path segment and emitted `build/electron/electron/main.js`. The dev script launches `build/electron/main.js`, and `main.ts` resolves the renderer as `path.join(dirname, '../../dist/index.html')`, which under the nested layout pointed at `build/dist` rather than `apps/operator/dist`. Both paths were wrong, and `find` confirmed that `horus.sqlite` has never been created on the operator's machine — the application has never successfully run.
+- Options considered: change the dev script to the nested path; change `main.ts` to compensate for the extra level; set `rootDir` to `./electron` so the emitted layout matches what the rest of the project already assumes.
+- Decision: set `rootDir: "./electron"`. It is the only option that fixes both the dev script and the renderer path without adding a compensating hack, and it leaves every existing relative path in `main.ts` correct.
+- Consequences: `npm run build` now emits `main.js`, `preload.js`, `persistence.js`, `workflow-state.js`, `agent/` and `integrations/` directly under `build/electron/`, which was verified. Launching the application still has not been observed. More significantly, this establishes that the Electron foundation described in the Phase 3 and Phase 4 checkpoints was built and tested but never executed, so the SQLite store has never held real evidence — the calibration data lives in `cache/` as plain files. That does not invalidate the checkpoints, which describe design and automated tests, but it narrows what "implemented" has meant so far and should be read alongside DEC-050.
+- Supersedes: not applicable
+
+### DEC-052 — The preload script is CommonJS, and must stay that way
+
+- Date: 2026-08-07
+- Status: proposed — compiles clean; runtime not yet confirmed
+- Context: with the build layout corrected in DEC-051 the application finally started, and the renderer console showed `Unable to load preload script ... SyntaxError: Cannot use import statement outside a module`, thrown from `executeSandboxedPreloadScripts`. `package.json` declares `"type": "module"`, so the compiled `preload.js` was an ES module, and Electron's sandboxed preload loader accepts only CommonJS. The failure is invisible from the renderer: `window.horus` is simply `undefined`, and because `App.tsx` calls it through optional chaining, every save became a silent no-op. `domain_events` was 0 after a full walk through the workflow.
+- Options considered: disable `sandbox` so ESM preload is permitted; emit the preload as `.mjs`; add a separate CommonJS tsconfig for the preload; rename the source to `.cts` so NodeNext emits `.cjs`.
+- Decision: rename `electron/preload.ts` to `electron/preload.cts`. Under `module: NodeNext` a `.cts` source emits `.cjs` as CommonJS regardless of the package type, with no extra build step and no weakening of the sandbox. `verbatimModuleSyntax` requires the `import electron = require('electron')` form in that file. `main.ts` now loads `preload.cjs`.
+- Consequences: the sandbox stays enabled, which matters because the preload is the only bridge across the `contextIsolation` boundary. Anyone adding to the preload must keep the `.cts` extension and the `require` import form. Disabling `sandbox` to allow ESM would have been the smaller diff and the worse decision.
+- Supersedes: not applicable
+
+### DEC-053 — The interface advances independently of the record, and that is the real defect
+
+- Date: 2026-08-07
+- Status: proposed — finding recorded, remedy not implemented
+- Context: found while diagnosing DEC-052. In `App.tsx`, `updateWorkflow` calls `setWorkflow(next)` and `persist(next)` with no relationship between them. The interface therefore advances whether or not the main process accepted anything. With the preload broken this was demonstrated at full scale: the operator walked from stage 01 to stage 07, past the demonstration approval gate, with the interface displaying an approved demonstration and offering to publish, while `domain_events` remained 0. Nothing durable existed.
+- Options considered: leave it, since the workflow is local and re-derivable; roll the interface back when a save is refused; make the main process the source of truth and render only state it has confirmed; require the renderer to send commands rather than state, so a transition exists only once it is recorded.
+- Decision: record the finding; do not implement a remedy in this batch. The correct fix is the command-based refactor already identified in DEC-048, and doing it properly means the interface renders confirmed state rather than optimistic state. That is a change to every stage component and should not be bolted on beside two other unverified corrections.
+- Consequences: until this is fixed, the interface can display an approval that the system of record never accepted. In validation mode the consequence is cosmetic, because publication is local and fictional. In a real run the same mechanism operates, which is why this is recorded as a defect rather than a preference. The `.catch` added to `persist` in DEC-048 surfaces a refusal to the operator but does not roll the interface back, and should not be mistaken for a fix.
+- Supersedes: not applicable
+
+### DEC-054 — Two hardening findings recorded without remedy
+
+- Date: 2026-08-07
+- Status: proposed — findings recorded, no remedy authorised
+- Context: both observed while the application ran for the first time.
+- Findings: (1) the SQLite store was created at `~/Library/Application Support/Electron/data/horus.sqlite`. Electron falls back to the generic name `Electron` for an unpackaged application, so HORUS shares a data directory with any other unpackaged Electron application on the machine — a collision risk for a project whose evidence is meant to be immutable and attributable. `app.setName('HORUS')` before `whenReady` addresses it, and existing data would need moving. (2) The renderer runs with no Content-Security-Policy, which Electron reports as a security warning naming `unsafe-eval`.
+- Decision: record both, remedy neither in this batch. Each is a small change with a real chance of breaking startup or the renderer, and two unverified corrections were already in flight.
+- Consequences: these belong to Phase 6's hardening half and should be taken before any packaged build. Neither affects the approval gates.
+- Supersedes: not applicable
+
+### DEC-055 — The dev server binds to IPv4 explicitly
+
+- Date: 2026-08-07
+- Status: proposed — verified working
+- Context: with the preload corrected, the application still failed to load the renderer: `Failed to load URL: http://127.0.0.1:5173/ with error: ERR_CONNECTION_REFUSED`. Vite reported itself ready on `localhost:5173`, which on macOS resolves to the IPv6 loopback `::1`, while `dev:desktop` requests the IPv4 address. `wait-on tcp:5173` succeeded, which is why the failure appeared only at the Electron end.
+- Options considered: change `VITE_DEV_SERVER_URL` to `localhost` and let resolution decide; bind Vite to `127.0.0.1`; make Electron retry on both addresses.
+- Decision: add `--host 127.0.0.1` to `dev:renderer`, so both sides name the same explicit address rather than depending on how `localhost` resolves on a given machine.
+- Consequences: development startup no longer depends on loopback resolution order. Nothing about the production build changes; `loadFile` is used there.
+- Supersedes: not applicable
+
+### DEC-056 — The analyst task is schema-constrained, and HORUS does not use `--bare`
+
+- Date: 2026-08-07
+- Status: proposed — verified against Anthropic's published CLI documentation, not against a live run
+- Context: DEC-049 was written before the Claude Code contract had been checked against anything. Reading the documented behaviour of `claude -p` changed two design points and surfaced a conflict with DEC-045.
+- Findings: (1) `--output-format json` returns an envelope with the text in `result`, plus `session_id` and `total_cost_usd`. Passing `--json-schema` puts schema-conforming output in `structured_output` instead, which is a far stronger contract than parsing prose. (2) `--bare` is Anthropic's recommended mode for scripted calls, but it does not use the subscription login and requires `ANTHROPIC_API_KEY` — exactly the metered dependency DEC-045 refuses. (3) A failure inside a run, such as missing authentication, is printed as the result on stdout rather than stderr, so a zero exit code does not by itself mean success. (4) SIGTERM produces exit code 143.
+- Options considered: use `--bare` and accept API billing; use `--bare` only in tests; omit `--bare` and accept the consequences; abandon the CLI for the TypeScript SDK.
+- Decision: pass `--json-schema` with an explicit schema for the analyst task, and treat a missing `structured_output` as a failure rather than falling back to prose. Do not pass `--bare`. Record `session_id`, `total_cost_usd` and `num_turns` in the run record, satisfying the traceability requirement in `AGENT_ARCHITECTURE.md` section 8. Inspect stdout for failure signatures even when the exit code is zero, and map 143 to `cancelled`.
+- Consequences: the analyst can no longer answer in prose and have it accepted. Cost per run becomes visible without consulting the usage dashboard. **The cost of omitting `--bare` is real and should be watched:** without it, Claude Code loads the host's hooks, plugins, MCP servers and `CLAUDE.md`. This repository contains a `CLAUDE.md` written for a different audience, and it would be loaded into every analyst run from this working directory. That makes runs less reproducible across machines and creates a path for repository content to influence an agent that is supposed to reason only over supplied evidence. Confining the working directory of the subprocess, or replacing the system prompt with `--system-prompt`, should be evaluated before the shadow-mode replay. The error wording `classifyFailure` matches on remains unverified against a live run.
+- Supersedes: not applicable
+
+### DEC-057 — The agent runs from an isolated directory with its own system prompt, not from the HORUS repository
+
+- Date: 2026-08-07
+- Status: proposed — written and unit-tested with real temporary directories; not yet exercised against a live Claude Code invocation
+- Context: DEC-056 established that HORUS cannot use `--bare` without violating DEC-045's refusal of API-key billing. Without `--bare`, Claude Code auto-discovers the current working directory's `CLAUDE.md`, hooks, plugins and MCP servers. This repository has a `CLAUDE.md`, written to instruct a human maintaining HORUS — not a bounded agent that is supposed to reason only over the evidence a task supplies. Running the analyst from the repository root would have handed it exactly the kind of unbounded context `AGENT_ARCHITECTURE.md` section 3 says an agent must not have.
+- Options considered: accept the exposure and rely on the analyst ignoring irrelevant instructions; reduce `CLAUDE.md` to nothing an agent could misuse (weakens it for its actual audience); run every agent invocation from an isolated, empty directory; reconsider `--bare` and accept API billing after all.
+- Decision: two changes. `buildClaudeCodeArgs` now passes `--system-prompt`, which replaces Claude Code's default system prompt outright, so the task's own instruction is what governs the run rather than whatever a discovered `CLAUDE.md` would add. The `-p` argument becomes a short kickoff naming the task and evidence count; the rules live entirely in `--system-prompt`. Separately, every run gets a fresh working directory from `electron/agent/working-directory.ts`'s `createWorkingDirectoryPreparer`, created under HORUS's own data directory, never the repository, and confirmed on creation to contain no `CLAUDE.md` or `.claude`.
+- Consequences: an agent run no longer has a path to repository-level instructions at all, not merely a system prompt that competes with them. `LocalAgentRuntime.run` and `checkAvailability` now require an injected `prepareWorkingDirectory` function, following the same test-by-injection pattern as `fetchImpl` in the SerpApi module. Unit tests create and inspect real temporary directories rather than asserting against a mock, in the style of `persistence.test.ts`. What remains unverified is exactly what DEC-056 already flagged: no live Claude Code process has been run, so whether `--system-prompt` is honoured as strongly as the documentation states, and whether an isolated `cwd` fully prevents auto-discovery, are still assumptions from reading rather than observations.
+- Supersedes: not applicable
+
+### DEC-058 — A live run showed the tool allowlist was never enforced against Claude Code itself
+
+- Date: 2026-08-07
+- Status: proposed — the lockdown flag is added and unit-tested; the deeper fix is deferred
+- Context: the operator ran the exact command `buildClaudeCodeArgs` constructs, for the first time, from an isolated `/tmp` directory. It succeeded and returned the expected `structured_output`, `session_id` and `total_cost_usd`, confirming DEC-056 and DEC-057 against a real process rather than documentation. It also showed `stop_reason: "tool_use"` and `num_turns: 2` — Claude Code attempted to use a tool during a run that supplied none. Re-reading `buildClaudeCodeArgs` in that light found the gap: `assertTaskIsBounded` checks `task.allowedTools`, a field on the `BoundedAgentTask` data object, for forbidden names. That check has never been connected to Claude Code's actual permission surface. Nothing in `buildClaudeCodeArgs` passed `--allowedTools` or a permission mode, so a real run had Claude Code's default access — Bash and file read/write — regardless of what the task object claimed to allow. `AGENT_ARCHITECTURE.md` section 6 is explicit that an agent must receive only the tools its role needs; before this fix, the code enforced that only on paper.
+- Options considered: leave it, since the isolated working directory from DEC-057 already contains the blast radius; pass `--allowedTools` built from `task.allowedTools`; pass `--permission-mode dontAsk` to deny anything not explicitly allowed.
+- Decision: add `--permission-mode dontAsk` unconditionally. `--allowedTools` with `task.allowedTools`'s names (`read_evidence_snapshot`, `run_deterministic_scoring`, and so on) was rejected for now: those are names chosen for this codebase's future HORUS-specific tools, not tools that exist yet — no MCP server or custom tool registers them, so allow-listing them today would permit nothing real while looking like a control that does something. `dontAsk` denies everything not explicitly allowed, so a run that allow-lists nothing can execute nothing.
+- Consequences: **this is containment, not the designed control.** The correct fix is implementing HORUS's evidence-reading tools as a real MCP server or custom tool set, and allow-listing exactly the ones a role's `allowedTools` names — at which point `--allowedTools` should be added alongside `--permission-mode dontAsk`, and `assertTaskIsBounded`'s check would finally be validating something that reaches the runtime. Until then, an agent task effectively runs with no tool access at all rather than the intended read-only evidence access, which will show up as `tool_denied` or empty output the first time a real analyst task is attempted — a visible failure, not a silent one, but a real limitation to plan around before step 3 can be considered functionally complete. Recorded here because it was found by running the code, not by reading it, which is the reminder this whole batch keeps producing: reading finds shapes; running finds what the shapes don't cover.
+- Supersedes: not applicable
+
 ## Template
 
 ### DEC-XXX — Title

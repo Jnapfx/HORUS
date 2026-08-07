@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { listIntegrationContracts } from './integrations/contracts.js'
 import { createHorusStore } from './persistence.js'
+import { WorkflowStateRejected, acceptWorkflowState } from './workflow-state.js'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -17,7 +18,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(dirname, 'preload.js'),
+      preload: path.join(dirname, 'preload.cjs'),
     },
   })
 
@@ -36,7 +37,24 @@ app.whenReady().then(() => {
   ipcMain.handle('foundation:integration-contracts', () => listIntegrationContracts())
   ipcMain.handle('workflow:representative:get', () => store.getWorkflowState('representative-local-v1'))
   ipcMain.handle('workflow:representative:save', (_event, state: unknown) => {
-    store.saveWorkflowState({ workflowId: 'representative-local-v1', state, updatedAt: new Date().toISOString() })
+    const workflowId = 'representative-local-v1'
+    try {
+      // The renderer proposes; the main process decides. See DEC-048.
+      const accepted = acceptWorkflowState(store.getWorkflowState(workflowId), state)
+      store.saveWorkflowState({ workflowId, state: accepted, updatedAt: new Date().toISOString() })
+    } catch (error) {
+      if (!(error instanceof WorkflowStateRejected)) throw error
+      // A rejected save is itself evidence: it records that the renderer tried
+      // to write a state the main process would not accept.
+      store.appendEvent({
+        aggregateType: 'workflow_session',
+        aggregateId: workflowId,
+        eventType: 'workflow.state_rejected',
+        payload: { reason: error.reason },
+        occurredAt: new Date().toISOString(),
+      })
+      throw error
+    }
   })
   createWindow()
 

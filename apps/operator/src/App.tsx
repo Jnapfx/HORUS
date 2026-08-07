@@ -43,7 +43,14 @@ function App() {
   const isComplete = workflow.deliveryDeclared
 
   const persist = (next: VerticalWorkflowState) => {
-    void window.horus?.workflow.saveRepresentative(next).then(() => window.horus?.foundation.getStatus()).then((nextStatus) => { if (nextStatus) setStatus(nextStatus) })
+    void window.horus?.workflow.saveRepresentative(next)
+      .then(() => window.horus?.foundation.getStatus())
+      .then((nextStatus) => { if (nextStatus) setStatus(nextStatus) })
+      // The main process is entitled to refuse a save (DEC-048). A refusal must
+      // be visible rather than leaving the interface showing unsaved state.
+      .catch((error: unknown) => {
+        window.alert(error instanceof Error ? error.message : 'The workflow state was rejected by HORUS.')
+      })
   }
   const updateWorkflow = (next: VerticalWorkflowState) => { setWorkflow(next); persist(next) }
   const advance = (step: WorkflowStep, detail: string) => updateWorkflow(moveWorkflow(workflow, step, detail))

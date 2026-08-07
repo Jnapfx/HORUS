@@ -18,7 +18,7 @@ export type FoundationStatus = {
 }
 
 export type HorusStore = {
-  appendRawSnapshot: (input: RawSnapshotInput) => { id: string; path: string }
+  appendRawSnapshot: (input: RawSnapshotInput) => { id: string; path: string; payloadHash: string }
   appendEvent: (input: { aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }) => string
   getWorkflowState: (workflowId: string) => unknown | null
   saveWorkflowState: (input: { workflowId: string; state: unknown; updatedAt: string }) => void
@@ -34,6 +34,52 @@ function hash(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex')
 }
 
+const SCHEMA_VERSION = 1
+
+/**
+ * DEC-047. The original `raw_snapshots` made `payload_hash` UNIQUE, derived the
+ * row id from that hash, and inserted with `INSERT OR IGNORE`. Retrieving
+ * identical content a second time was therefore discarded in silence: no second
+ * row, and no second `retrieved_at`.
+ *
+ * That contradicts the storage rule that a later retrieval creates a new
+ * snapshot beside the old one, and it can starve the 30-day freshness rule
+ * (DEC-021) of the current retrieval timestamp it depends on.
+ *
+ * A retrieval is now its own record. Content remains stored once on disk,
+ * addressed by hash, because deduplicating bytes is not the same as
+ * deduplicating retrievals.
+ */
+function migrateRawSnapshots(database: Database.Database) {
+  const existing = database
+    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'raw_snapshots'`)
+    .get() as { sql: string } | undefined
+
+  if (existing && existing.sql.includes('payload_hash TEXT NOT NULL UNIQUE')) {
+    database.exec(`
+      BEGIN;
+      CREATE TABLE raw_snapshots_migrated (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        request_json TEXT NOT NULL,
+        retrieved_at TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        storage_path TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO raw_snapshots_migrated
+        (id, source, request_json, retrieved_at, payload_hash, storage_path, created_at)
+        SELECT id, source, request_json, retrieved_at, payload_hash, storage_path, created_at
+        FROM raw_snapshots;
+      DROP TABLE raw_snapshots;
+      ALTER TABLE raw_snapshots_migrated RENAME TO raw_snapshots;
+      COMMIT;
+    `)
+  }
+
+  database.pragma(`user_version = ${SCHEMA_VERSION}`)
+}
+
 export function createHorusStore(dataDirectory: string): HorusStore {
   const rawDirectory = path.join(dataDirectory, 'raw')
   fs.mkdirSync(rawDirectory, { recursive: true })
@@ -47,8 +93,8 @@ export function createHorusStore(dataDirectory: string): HorusStore {
       source TEXT NOT NULL,
       request_json TEXT NOT NULL,
       retrieved_at TEXT NOT NULL,
-      payload_hash TEXT NOT NULL UNIQUE,
-      storage_path TEXT NOT NULL UNIQUE,
+      payload_hash TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS domain_events (
@@ -66,8 +112,15 @@ export function createHorusStore(dataDirectory: string): HorusStore {
     );
   `)
 
+  migrateRawSnapshots(database)
+
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS raw_snapshots_payload_hash ON raw_snapshots (payload_hash);
+    CREATE INDEX IF NOT EXISTS raw_snapshots_source_retrieved_at ON raw_snapshots (source, retrieved_at);
+  `)
+
   const appendSnapshot = database.prepare(`
-    INSERT OR IGNORE INTO raw_snapshots
+    INSERT INTO raw_snapshots
       (id, source, request_json, retrieved_at, payload_hash, storage_path, created_at)
     VALUES (@id, @source, @requestJson, @retrievedAt, @payloadHash, @storagePath, @createdAt)
   `)
@@ -89,7 +142,9 @@ export function createHorusStore(dataDirectory: string): HorusStore {
       const payloadHash = hash(body)
       const sourceDirectory = path.join(rawDirectory, input.source.replaceAll(/[^a-z0-9_-]/gi, '_'))
       const storagePath = path.join(sourceDirectory, `${payloadHash}.json`)
-      const id = `raw_${payloadHash}`
+      // One row per retrieval. Identical content retrieved again is a second
+      // piece of evidence about time, even when the bytes have not changed.
+      const id = `raw_${crypto.randomUUID()}`
 
       fs.mkdirSync(sourceDirectory, { recursive: true })
       try {
@@ -108,7 +163,7 @@ export function createHorusStore(dataDirectory: string): HorusStore {
         createdAt: new Date().toISOString(),
       })
 
-      return { id, path: storagePath }
+      return { id, path: storagePath, payloadHash }
     },
     appendEvent(input) {
       const id = `event_${crypto.randomUUID()}`

@@ -36,6 +36,27 @@ describe('local evidence store', () => {
     store.close()
   })
 
+  it('records a later retrieval of identical content as a separate snapshot', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+    const retrieval = { source: 'serpapi', request: { engine: 'google_maps' }, payload: { rating: 4.8, reviews: 120 } }
+
+    const first = store.appendRawSnapshot({ ...retrieval, retrievedAt: '2026-07-01T12:00:00.000Z' })
+    const second = store.appendRawSnapshot({ ...retrieval, retrievedAt: '2026-08-07T12:00:00.000Z' })
+
+    // Two retrievals, two records: the second proves the evidence was still
+    // current on 7 August, which is what the freshness gate reads.
+    expect(second.id).not.toBe(first.id)
+    expect(store.getFoundationStatus().rawSnapshotCount).toBe(2)
+
+    // Identical bytes are still stored once.
+    expect(second.payloadHash).toBe(first.payloadHash)
+    expect(second.path).toBe(first.path)
+    expect(fs.readdirSync(path.dirname(first.path))).toHaveLength(1)
+    store.close()
+  })
+
   it('resumes a workflow snapshot while retaining its append-only history', () => {
     const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
     temporaryDirectories.push(dataDirectory)

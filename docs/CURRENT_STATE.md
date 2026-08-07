@@ -30,6 +30,44 @@ Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2
 
 **Phase 6 — Validation and Hardening: pending.** Its proposed implementation sequence now includes correcting the foundation findings, then evaluating locally orchestrated agents through the operator's existing Claude subscription and Claude Code before considering a usage-metered model API. The agent runtime is documented but not implemented. Phase 6 begins in shadow mode and does not authorize additional public concepts or outreach by itself (DEC-045, `AGENT_ARCHITECTURE.md`).
 
+### Phase 6 working draft — written 2026-08-07, not approved and not executed
+
+Steps 1 to 3 of the validation sequence are **written and verified**, statically and at runtime, on macOS on 2026-08-07: oxlint clean, 52 of 52 tests passing, `tsc -b`, `vite build` and `tsc -p tsconfig.electron.json` clean, the DEC-047 migration executed and confirmed by inspecting the schema, and a workflow save recorded end to end.
+
+The agent runtime contract was checked against Anthropic's published CLI documentation (DEC-056). The analyst task is schema-constrained through `--json-schema`, so prose is refused rather than accepted, and `session_id`, `total_cost_usd` and `num_turns` are recorded per run. That review found a conflict with DEC-045: `--bare`, the recommended mode for scripted calls, bypasses the subscription login and requires an API key, so HORUS does not use it — which otherwise would have meant Claude Code auto-discovering this repository's own `CLAUDE.md` on every analyst run.
+
+That gap is now closed (DEC-057): `--system-prompt` replaces the default system prompt with the task's own instruction, and every run gets a fresh, empty working directory created under HORUS's own data directory, confirmed on creation to contain no `CLAUDE.md` or `.claude`.
+
+**The operator then ran the exact command HORUS constructs, for the first time, from an isolated directory.** It succeeded: `structured_output`, `session_id` and `total_cost_usd` all arrived exactly as DEC-056 predicted from documentation, confirming the runtime contract against a live process. It also surfaced DEC-058 — Claude Code attempted a tool call in a run that supplied none, revealing that `task.allowedTools` had only ever been validated as data, never passed to Claude Code's actual permission surface. `--permission-mode dontAsk` now denies anything not explicitly allowed, which contains the gap but is not the designed control: HORUS has no real evidence-reading tools implemented yet, so a genuine analyst run today would execute with no tool access at all rather than the intended read-only evidence access. This is the clearest example so far of why steps in this phase need running, not just reading.
+
+Getting there required four corrections that were not in the Phase 6 plan, because **the application had never actually run before**:
+
+- The Electron build emitted one directory too deep, breaking both the dev script and the renderer path (DEC-051).
+- The preload compiled as an ES module, which Electron's sandboxed loader rejects. `window.horus` was undefined and every save was a silent no-op (DEC-052).
+- The dev server bound to IPv6 while Electron requested IPv4 (DEC-055).
+- The store writes to Electron's generic application directory, and the renderer has no Content-Security-Policy (DEC-054, recorded without remedy).
+
+Two consequences worth carrying forward:
+
+- **`horus.sqlite` did not exist until today.** The Phase 1 calibration evidence lives in `cache/raw/serpapi/google_maps/` as 362 timestamped files. `appendRawSnapshot` had only ever run inside tests, so the persistence layer described in earlier checkpoints was implemented and tested but had never been the system of record.
+- **The interface advances independently of the record.** While the preload was broken, the workflow was walked from stage 01 to stage 07 — past the demonstration approval gate — with nothing persisted at all. That is a defect in `App.tsx`, not in the preload, and it is recorded in DEC-053 with the remedy deliberately deferred.
+
+Written:
+
+- The three foundation corrections: credential-free provenance (DEC-046), one snapshot row per retrieval with a `user_version` migration (DEC-047), and main-process validation of renderer-submitted workflow state (DEC-048).
+- The provider-neutral agent boundary and the single bounded analyst task, with the section 11 acceptance criteria enforced in the output parser (DEC-049).
+- Twenty new automated tests — two for the integration and persistence corrections, seven for main-process state validation, eleven for the agent boundary — bringing the suite from 25 to 45 if they pass as written.
+
+Not written, and still required before Phase 6 can be called complete:
+
+- Verification of the Claude Code command shape, flags, authentication behaviour and error wording against a real installation. `classifyFailure` currently matches on strings nobody has observed (`AGENT_ARCHITECTURE.md` section 2).
+- Steps 4 to 8: the Finescape and SEASONS EATS shadow-mode replay, the comparison against the operator's historical decisions, and the retain/revise/reject decision on the runtime. All of these require execution.
+- Wiring the agent boundary into an IPC handler and the interface. The modules exist and are tested in isolation; nothing calls them yet.
+
+Known consequence to check on first run: DEC-047 changes `rawSnapshotCount` from a count of distinct payloads to a count of retrievals, so the foundation status number will move. The migration rewrites a table holding real Phase 1 calibration evidence and should be run against a copy of the database first.
+
+A separate finding, outside Phase 6 scope: `reputation-scoring-v1` is specified in charter section 9 but implemented nowhere in the code, so the calibration and SEASONS EATS reputation figures are not reproducible from this repository (DEC-050).
+
 ## Completed
 
 - [x] Create an independent repository for HORUS V1.
@@ -150,11 +188,11 @@ These do not block starting. They are what calibration exists to resolve, and th
 
 | Area | Status |
 | --- | --- |
-| Application code | Electron/React foundation implemented |
-| Tests | 25 automated tests passing |
-| Infrastructure | Local SQLite plus immutable JSON evidence manifest |
+| Application code | Electron/React foundation implemented and now buildable; never launched (DEC-051) |
+| Tests | 45 automated tests passing, lint and build clean as of 2026-08-07 |
+| Infrastructure | SQLite store implemented and tested but never used; retained evidence lives in `cache/` as plain files |
 | Integrations | Non-production contracts implemented; Gmail compose handoff exercised with operator-confirmed manual send |
-| Agents | Architecture and subscription-backed Claude Code evaluation direction documented; no runtime or agent is implemented |
+| Agents | Boundary and one bounded analyst task written and unit-testable; runtime unverified against a real Claude Code installation, and nothing calls it yet |
 | Design | Functional design and visual baseline approved |
 | Deployment | Cloudflare Pages direct deployments verified for bounded public concepts |
 

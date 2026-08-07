@@ -14,10 +14,20 @@ export type SerpApiRequestPlan = {
   rawEvidenceRequired: true
 }
 
+/**
+ * `requestUrl` is the provenance record for a retrieval and is written to the
+ * evidence store by `appendRawSnapshot`. It therefore carries the credential
+ * placeholder, never the credential: the executed URL is built separately and
+ * never leaves this module. See DEC-046.
+ */
 export type SerpApiDiscoveryResponse = {
   requestUrl: string
+  credentialPlaceholder: typeof CREDENTIAL_PLACEHOLDER
+  retrievedAt: string
   payload: unknown
 }
+
+export const CREDENTIAL_PLACEHOLDER = 'REDACTED_SERPAPI_KEY' as const
 
 function requireText(value: string, name: string) {
   if (!value.trim()) throw new Error(`${name} is required`)
@@ -42,14 +52,27 @@ export function buildSerpApiDiscoveryPlan(input: SerpApiDiscoveryInput): SerpApi
   }
 }
 
-export async function executeSerpApiDiscovery(input: SerpApiDiscoveryInput & { apiKey: string; fetchImpl?: typeof fetch }): Promise<SerpApiDiscoveryResponse> {
+export async function executeSerpApiDiscovery(
+  input: SerpApiDiscoveryInput & { apiKey: string; fetchImpl?: typeof fetch; now?: () => Date },
+): Promise<SerpApiDiscoveryResponse> {
   requireText(input.apiKey, 'SerpApi key')
   const plan = buildSerpApiDiscoveryPlan(input)
-  const requestUrl = new URL(plan.endpoint)
-  Object.entries(plan.query).forEach(([key, value]) => requestUrl.searchParams.set(key, value))
-  requestUrl.searchParams.set('api_key', input.apiKey)
 
-  const response = await (input.fetchImpl ?? fetch)(requestUrl)
+  // Built once without the credential. The provenance copy is taken before the
+  // key is ever set, so no code path can accidentally serialise it.
+  const provenanceUrl = new URL(plan.endpoint)
+  Object.entries(plan.query).forEach(([key, value]) => provenanceUrl.searchParams.set(key, value))
+  const executedUrl = new URL(provenanceUrl)
+  executedUrl.searchParams.set('api_key', input.apiKey)
+  provenanceUrl.searchParams.set('api_key', CREDENTIAL_PLACEHOLDER)
+
+  const response = await (input.fetchImpl ?? fetch)(executedUrl)
   if (!response.ok) throw new Error(`SerpApi discovery failed with HTTP ${response.status}`)
-  return { requestUrl: requestUrl.toString(), payload: await response.json() }
+
+  return {
+    requestUrl: provenanceUrl.toString(),
+    credentialPlaceholder: CREDENTIAL_PLACEHOLDER,
+    retrievedAt: (input.now?.() ?? new Date()).toISOString(),
+    payload: await response.json(),
+  }
 }
