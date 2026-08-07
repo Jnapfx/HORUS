@@ -12,6 +12,12 @@ Thirty real businesses have now calibrated the models. The operator approved ret
 
 **DEC-046 through DEC-062 approved by Javier Napoles, 2026-08-07**, closing out Phase 6 steps 1–3 as accepted history rather than proposals awaiting review.
 
+**DEC-063 and DEC-064 approved by Javier Napoles, 2026-08-07.**
+
+**DEC-063:** before running the AGENT_ARCHITECTURE.md step 4 shadow replay, direct inspection of `cache/phase5/horus.sqlite` found that DEC-062's fix does not fully cover it. Finescape and Sons' 3 evidence rows are all reachable with `evidenceBasePath` set to the repository root, exactly as DEC-062 verified. SEASONS EATS is different: its own discovery/listing row is one of 10 rows in that database with a NULL `id` and can never be read by `read_evidence_snapshot`; only 2 near-duplicate review-page snapshots for it have a real id, and both need `evidenceBasePath` set to `apps/operator`, not the repository root, to resolve. `scripts/run-shadow-replay.ts` (new; `npm run agent:shadow-replay -- finescape` or `... seasons`) takes a per-case `evidenceBasePath` and runs the SEASONS EATS side as an explicitly partial replay.
+
+**DEC-064:** both replays were then run live. Finescape (full evidence): the analyst read a 4.7/30 Maps rating, no `website` field, strongly positive reviews, and proposed the candidate for review — a qualitative read that does not match the retained historical outcome (retired at 48.1/100 by `reputation-scoring-v1`). This is expected, not a defect: the analyst never computes a score (rule 3) and only saw 3 snapshots, not the full retrieval the real deterministic model scored. It shows concretely why `reputation-scoring-v1` remaining unimplemented (DEC-050) matters — an agent's plausible qualitative read can diverge from the real model, and only the deterministic score is authoritative. SEASONS EATS (partial evidence, per DEC-063): the analyst proposed nothing, marking web-presence, full review population, and review text all `insufficient_data` — correct, evidence-honest abstention given a partial input, not a failure to reproduce the 73.06/100 approval it never had the evidence to see. AGENT_ARCHITECTURE.md step 4 is closed for both cases (one fully, one partially, as DEC-063 documents). Steps 5+ and the four unimplemented `ANALYST_TOOLS`/IPC-UI wiring remain open and unscheduled.
+
 ## Active phase
 
 **Phase 0 — Definition: complete and approved** by Javier Napoles on 2026-08-05. Evidence: [`checkpoints/2026-08-05_phase-0-definition.md`](checkpoints/2026-08-05_phase-0-definition.md).
