@@ -10,6 +10,8 @@ The repository contains the approved product documents, locally cached calibrati
 
 Thirty real businesses have now calibrated the models. The operator approved retaining `reputation-scoring-v1` and `web-opportunity-v2` unchanged; the remaining unvalidated assumptions are recorded below rather than treated as settled.
 
+**DEC-046 through DEC-062 approved by Javier Napoles, 2026-08-07**, closing out Phase 6 steps 1–3 as accepted history rather than proposals awaiting review.
+
 ## Active phase
 
 **Phase 0 — Definition: complete and approved** by Javier Napoles on 2026-08-05. Evidence: [`checkpoints/2026-08-05_phase-0-definition.md`](checkpoints/2026-08-05_phase-0-definition.md).

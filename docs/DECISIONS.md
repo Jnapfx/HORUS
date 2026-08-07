@@ -439,14 +439,14 @@ This file serves as an index. Complex decisions may later be moved to individual
 - Sources: Anthropic's Claude Code setup and Agent SDK documentation, verified 2026-08-07, document eligible subscription authentication, non-interactive/programmatic execution, structured output, tools, permissions, and sessions.
 - Supersedes: not applicable
 
-## Phase 6 — proposed, not approved
+## Phase 6
 
-The five decisions below were drafted alongside the Phase 6 foundation corrections. **None has been approved by the operator, and none has been executed or verified on a machine that can run the test suite.** They are recorded as proposals so the reasoning is reviewable before it becomes history. Approve, revise, or reject them; do not treat them as settled.
+DEC-046 through DEC-062 were drafted alongside the Phase 6 foundation corrections and the first agent boundary work, then **approved by Javier Napoles as a batch on 2026-08-07**, after the verification recorded in each entry's Status line — which for most of them includes at least one live Claude Code invocation, not just a passing test suite.
 
 ### DEC-046 — SerpApi provenance records that a credential was used, never its value
 
 - Date: 2026-08-07
-- Status: proposed
+- Status: accepted by Javier Napoles, 2026-08-07
 - Context: `executeSerpApiDiscovery` built the request URL, set `api_key` on it, and returned `requestUrl.toString()` with the credential still attached. `appendRawSnapshot` writes its `request` argument into `raw_snapshots.request_json` and into the raw JSON file on disk, so the operator's SerpApi key was one ordinary call away from being written into the immutable evidence store. The existing contract test asserted only that the key was absent from `payload`, which was true and beside the point.
 - Options considered: strip the key from the URL before returning it; return only the query object and let the caller rebuild; return the full URL and require every caller to redact; hash the key into an opaque identifier.
 - Decision: the executed URL and the provenance URL are built as two separate objects. The provenance copy is taken before the credential is ever set and then records `api_key=REDACTED_SERPAPI_KEY`, so no code path can serialise the real value. `executeSerpApiDiscovery` also now returns `retrievedAt`, because the caller needs it for the snapshot record and should not invent one.
@@ -456,7 +456,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-047 — A retrieval is its own record, separate from the content it returned
 
 - Date: 2026-08-07
-- Status: proposed
+- Status: accepted by Javier Napoles, 2026-08-07
 - Context: `raw_snapshots` declared `payload_hash` UNIQUE, derived the row id from that hash, and inserted with `INSERT OR IGNORE`. Retrieving identical content a second time was therefore discarded silently: no second row and no second `retrieved_at`. This contradicts the storage rule that a later retrieval creates a new snapshot beside the old one, and it can starve DEC-021's 30-day freshness check of the current retrieval timestamp it depends on — a business whose listing has not changed would appear to have no recent evidence.
 - Options considered: keep content-addressed deduplication and accept the loss; add a separate retrievals table alongside the deduplicated content table; make each row a retrieval and keep content addressed by hash on disk; store the payload again per retrieval.
 - Decision: one row per retrieval, with a UUID id. `payload_hash` becomes a non-unique pointer to a content-addressed file that is still written only once, because deduplicating bytes is not the same as deduplicating retrievals. Added indexes on `payload_hash` and on `(source, retrieved_at)`. A `PRAGMA user_version` migration rebuilds the table on existing databases so the calibration evidence already on the operator's machine is preserved.
@@ -466,7 +466,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-048 — The main process validates workflow state submitted by the renderer
 
 - Date: 2026-08-07
-- Status: proposed
+- Status: accepted by Javier Napoles, 2026-08-07
 - Context: `workflow:representative:save` accepted `state: unknown` and wrote it directly to SQLite and to the append-only event log. The renderer sits on the untrusted side of the `contextIsolation` boundary, and the approval-gate guards in `moveWorkflow` live in `src/domain/`, which is renderer code. Every approval flag in the store was therefore renderer-asserted, which is what `AGENT_ARCHITECTURE.md` section 5 says must never be the case.
 - Options considered: leave it, since only HORUS's own renderer calls it today; validate the submitted state in the main process; move the domain module to a shared location imported by both sides; replace state saves with commands so the main process computes every transition itself.
 - Decision: add `electron/workflow-state.ts`, validating structure and comparing each submitted state against the state the main process already holds. Approvals are append-only, stages advance one at a time, and recorded events may only grow. A rejected save is itself written to the event log as `workflow.state_rejected`.
@@ -476,7 +476,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-049 — A provider-neutral agent boundary, with the analyst's limits enforced by the parser
 
 - Date: 2026-08-07
-- Status: proposed
+- Status: accepted by Javier Napoles, 2026-08-07
 - Context: DEC-045 accepted evaluating Claude Code as the first local runtime and `AGENT_ARCHITECTURE.md` specifies the boundary, but nothing was implemented. Steps 2 and 3 of the Phase 6 validation sequence require the boundary and one bounded analyst task before any replay can happen.
 - Options considered: call Claude Code directly from the main process where it is needed; build the full three-role agent set at once; build the runtime interface plus one analyst task; wait until the runtime can be verified on a machine with Claude Code installed.
 - Decision: add `electron/agent/runtime.ts` (provider-neutral interface, forbidden-tool list, failure taxonomy, injectable spawn) and `electron/agent/analyst-task.ts` (the single bounded task and its output parser). The parser enforces the section 11 acceptance criteria mechanically: a claim citing evidence the task never received is rejected, an uncited claim is rejected, any score-like field is rejected, and an absence may only be recorded as `insufficient_data`.
@@ -486,7 +486,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-050 — `reputation-scoring-v1` exists in the charter but not in the code
 
 - Date: 2026-08-07
-- Status: proposed — finding recorded, no remedy authorised
+- Status: accepted by Javier Napoles, 2026-08-07 — finding recorded, no remedy authorised
 - Context: found while reviewing the repository against its documentation. Charter section 9 specifies six gates, a five-factor 100-point model and a 70-point threshold. `web-opportunity-v2` is fully implemented in `src/domain/web-opportunity-audit.ts`. `reputation-scoring-v1` is not implemented anywhere: the only reputation value in the codebase is the literal `score: 82` in the representative fixture. There is no `scripts/` directory, so the 30-business calibration and the SEASONS EATS lower bound of 73.06 were computed outside the application and cannot be regenerated from this repository.
 - Options considered: implement the model as part of Phase 6; record the gap and leave Phase 6 scoped as documented; leave it undocumented until a later phase.
 - Decision: record the gap and leave it outside Phase 6. Phase 6 is validation and hardening of what exists; implementing the qualification model is new capability and deserves its own authorisation.
@@ -496,7 +496,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-051 — The Electron build emitted one directory too deep, and the application had never started
 
 - Date: 2026-08-07
-- Status: proposed — corrected and verified by build, not yet by launching the application
+- Status: accepted by Javier Napoles, 2026-08-07 — corrected and verified by build, later confirmed by launching the application
 - Context: found while verifying the Phase 6 batch. `tsconfig.electron.json` set `rootDir: "."` with `include: ["electron"]`, so TypeScript preserved the `electron/` path segment and emitted `build/electron/electron/main.js`. The dev script launches `build/electron/main.js`, and `main.ts` resolves the renderer as `path.join(dirname, '../../dist/index.html')`, which under the nested layout pointed at `build/dist` rather than `apps/operator/dist`. Both paths were wrong, and `find` confirmed that `horus.sqlite` has never been created on the operator's machine — the application has never successfully run.
 - Options considered: change the dev script to the nested path; change `main.ts` to compensate for the extra level; set `rootDir` to `./electron` so the emitted layout matches what the rest of the project already assumes.
 - Decision: set `rootDir: "./electron"`. It is the only option that fixes both the dev script and the renderer path without adding a compensating hack, and it leaves every existing relative path in `main.ts` correct.
@@ -506,7 +506,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-052 — The preload script is CommonJS, and must stay that way
 
 - Date: 2026-08-07
-- Status: proposed — compiles clean; runtime not yet confirmed
+- Status: accepted by Javier Napoles, 2026-08-07 — compiles clean; confirmed at runtime the same day
 - Context: with the build layout corrected in DEC-051 the application finally started, and the renderer console showed `Unable to load preload script ... SyntaxError: Cannot use import statement outside a module`, thrown from `executeSandboxedPreloadScripts`. `package.json` declares `"type": "module"`, so the compiled `preload.js` was an ES module, and Electron's sandboxed preload loader accepts only CommonJS. The failure is invisible from the renderer: `window.horus` is simply `undefined`, and because `App.tsx` calls it through optional chaining, every save became a silent no-op. `domain_events` was 0 after a full walk through the workflow.
 - Options considered: disable `sandbox` so ESM preload is permitted; emit the preload as `.mjs`; add a separate CommonJS tsconfig for the preload; rename the source to `.cts` so NodeNext emits `.cjs`.
 - Decision: rename `electron/preload.ts` to `electron/preload.cts`. Under `module: NodeNext` a `.cts` source emits `.cjs` as CommonJS regardless of the package type, with no extra build step and no weakening of the sandbox. `verbatimModuleSyntax` requires the `import electron = require('electron')` form in that file. `main.ts` now loads `preload.cjs`.
@@ -516,7 +516,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-053 — The interface advances independently of the record, and that is the real defect
 
 - Date: 2026-08-07
-- Status: proposed — finding recorded, remedy not implemented
+- Status: accepted by Javier Napoles, 2026-08-07 — finding recorded, remedy not implemented
 - Context: found while diagnosing DEC-052. In `App.tsx`, `updateWorkflow` calls `setWorkflow(next)` and `persist(next)` with no relationship between them. The interface therefore advances whether or not the main process accepted anything. With the preload broken this was demonstrated at full scale: the operator walked from stage 01 to stage 07, past the demonstration approval gate, with the interface displaying an approved demonstration and offering to publish, while `domain_events` remained 0. Nothing durable existed.
 - Options considered: leave it, since the workflow is local and re-derivable; roll the interface back when a save is refused; make the main process the source of truth and render only state it has confirmed; require the renderer to send commands rather than state, so a transition exists only once it is recorded.
 - Decision: record the finding; do not implement a remedy in this batch. The correct fix is the command-based refactor already identified in DEC-048, and doing it properly means the interface renders confirmed state rather than optimistic state. That is a change to every stage component and should not be bolted on beside two other unverified corrections.
@@ -526,7 +526,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-054 — Two hardening findings recorded without remedy
 
 - Date: 2026-08-07
-- Status: proposed — findings recorded, no remedy authorised
+- Status: accepted by Javier Napoles, 2026-08-07 — findings recorded, no remedy authorised
 - Context: both observed while the application ran for the first time.
 - Findings: (1) the SQLite store was created at `~/Library/Application Support/Electron/data/horus.sqlite`. Electron falls back to the generic name `Electron` for an unpackaged application, so HORUS shares a data directory with any other unpackaged Electron application on the machine — a collision risk for a project whose evidence is meant to be immutable and attributable. `app.setName('HORUS')` before `whenReady` addresses it, and existing data would need moving. (2) The renderer runs with no Content-Security-Policy, which Electron reports as a security warning naming `unsafe-eval`.
 - Decision: record both, remedy neither in this batch. Each is a small change with a real chance of breaking startup or the renderer, and two unverified corrections were already in flight.
@@ -536,7 +536,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-055 — The dev server binds to IPv4 explicitly
 
 - Date: 2026-08-07
-- Status: proposed — verified working
+- Status: accepted by Javier Napoles, 2026-08-07 — verified working
 - Context: with the preload corrected, the application still failed to load the renderer: `Failed to load URL: http://127.0.0.1:5173/ with error: ERR_CONNECTION_REFUSED`. Vite reported itself ready on `localhost:5173`, which on macOS resolves to the IPv6 loopback `::1`, while `dev:desktop` requests the IPv4 address. `wait-on tcp:5173` succeeded, which is why the failure appeared only at the Electron end.
 - Options considered: change `VITE_DEV_SERVER_URL` to `localhost` and let resolution decide; bind Vite to `127.0.0.1`; make Electron retry on both addresses.
 - Decision: add `--host 127.0.0.1` to `dev:renderer`, so both sides name the same explicit address rather than depending on how `localhost` resolves on a given machine.
@@ -546,7 +546,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-056 — The analyst task is schema-constrained, and HORUS does not use `--bare`
 
 - Date: 2026-08-07
-- Status: proposed — verified against Anthropic's published CLI documentation, not against a live run
+- Status: accepted by Javier Napoles, 2026-08-07 — verified against Anthropic's published CLI documentation, and against live runs the same day
 - Context: DEC-049 was written before the Claude Code contract had been checked against anything. Reading the documented behaviour of `claude -p` changed two design points and surfaced a conflict with DEC-045.
 - Findings: (1) `--output-format json` returns an envelope with the text in `result`, plus `session_id` and `total_cost_usd`. Passing `--json-schema` puts schema-conforming output in `structured_output` instead, which is a far stronger contract than parsing prose. (2) `--bare` is Anthropic's recommended mode for scripted calls, but it does not use the subscription login and requires `ANTHROPIC_API_KEY` — exactly the metered dependency DEC-045 refuses. (3) A failure inside a run, such as missing authentication, is printed as the result on stdout rather than stderr, so a zero exit code does not by itself mean success. (4) SIGTERM produces exit code 143.
 - Options considered: use `--bare` and accept API billing; use `--bare` only in tests; omit `--bare` and accept the consequences; abandon the CLI for the TypeScript SDK.
@@ -557,7 +557,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-057 — The agent runs from an isolated directory with its own system prompt, not from the HORUS repository
 
 - Date: 2026-08-07
-- Status: proposed — written and unit-tested with real temporary directories; not yet exercised against a live Claude Code invocation
+- Status: accepted by Javier Napoles, 2026-08-07 — written and unit-tested with real temporary directories, and exercised against live Claude Code invocations the same day
 - Context: DEC-056 established that HORUS cannot use `--bare` without violating DEC-045's refusal of API-key billing. Without `--bare`, Claude Code auto-discovers the current working directory's `CLAUDE.md`, hooks, plugins and MCP servers. This repository has a `CLAUDE.md`, written to instruct a human maintaining HORUS — not a bounded agent that is supposed to reason only over the evidence a task supplies. Running the analyst from the repository root would have handed it exactly the kind of unbounded context `AGENT_ARCHITECTURE.md` section 3 says an agent must not have.
 - Options considered: accept the exposure and rely on the analyst ignoring irrelevant instructions; reduce `CLAUDE.md` to nothing an agent could misuse (weakens it for its actual audience); run every agent invocation from an isolated, empty directory; reconsider `--bare` and accept API billing after all.
 - Decision: two changes. `buildClaudeCodeArgs` now passes `--system-prompt`, which replaces Claude Code's default system prompt outright, so the task's own instruction is what governs the run rather than whatever a discovered `CLAUDE.md` would add. The `-p` argument becomes a short kickoff naming the task and evidence count; the rules live entirely in `--system-prompt`. Separately, every run gets a fresh working directory from `electron/agent/working-directory.ts`'s `createWorkingDirectoryPreparer`, created under HORUS's own data directory, never the repository, and confirmed on creation to contain no `CLAUDE.md` or `.claude`.
@@ -567,7 +567,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-058 — A live run showed the tool allowlist was never enforced against Claude Code itself
 
 - Date: 2026-08-07
-- Status: proposed — the lockdown flag is added and unit-tested; the deeper fix is deferred
+- Status: accepted by Javier Napoles, 2026-08-07 — the lockdown flag is added and unit-tested; the deeper fix is deferred
 - Context: the operator ran the exact command `buildClaudeCodeArgs` constructs, for the first time, from an isolated `/tmp` directory. It succeeded and returned the expected `structured_output`, `session_id` and `total_cost_usd`, confirming DEC-056 and DEC-057 against a real process rather than documentation. It also showed `stop_reason: "tool_use"` and `num_turns: 2` — Claude Code attempted to use a tool during a run that supplied none. Re-reading `buildClaudeCodeArgs` in that light found the gap: `assertTaskIsBounded` checks `task.allowedTools`, a field on the `BoundedAgentTask` data object, for forbidden names. That check has never been connected to Claude Code's actual permission surface. Nothing in `buildClaudeCodeArgs` passed `--allowedTools` or a permission mode, so a real run had Claude Code's default access — Bash and file read/write — regardless of what the task object claimed to allow. `AGENT_ARCHITECTURE.md` section 6 is explicit that an agent must receive only the tools its role needs; before this fix, the code enforced that only on paper.
 - Options considered: leave it, since the isolated working directory from DEC-057 already contains the blast radius; pass `--allowedTools` built from `task.allowedTools`; pass `--permission-mode dontAsk` to deny anything not explicitly allowed.
 - Decision: add `--permission-mode dontAsk` unconditionally. `--allowedTools` with `task.allowedTools`'s names (`read_evidence_snapshot`, `run_deterministic_scoring`, and so on) was rejected for now: those are names chosen for this codebase's future HORUS-specific tools, not tools that exist yet — no MCP server or custom tool registers them, so allow-listing them today would permit nothing real while looking like a control that does something. `dontAsk` denies everything not explicitly allowed, so a run that allow-lists nothing can execute nothing.
@@ -577,7 +577,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-059 — The analyst's one real tool is a read-only MCP server
 
 - Date: 2026-08-07
-- Status: proposed — verified live. Written and unit-tested against a real SQLite database (`npm install && npm run test && npm run build`, 2026-08-07: 61/61 tests), then the operator ran `claude -p` with `--mcp-config` pointing at the compiled server and `--allowedTools "mcp__horus-evidence__read_evidence_snapshot"` against a real, seeded row in `horus.sqlite`. Claude Code called the tool and returned the row's exact `source`, `retrievedAt` and `payload` — data it had no way to produce except by reading it, with `permission_denials: []` confirming the allow-list worked.
+- Status: accepted by Javier Napoles, 2026-08-07 — verified live. Written and unit-tested against a real SQLite database (`npm install && npm run test && npm run build`, 2026-08-07: 61/61 tests), then the operator ran `claude -p` with `--mcp-config` pointing at the compiled server and `--allowedTools "mcp__horus-evidence__read_evidence_snapshot"` against a real, seeded row in `horus.sqlite`. Claude Code called the tool and returned the row's exact `source`, `retrievedAt` and `payload` — data it had no way to produce except by reading it, with `permission_denials: []` confirming the allow-list worked.
 - Context: DEC-058 found that `task.allowedTools` was validated as data but never reached Claude Code, and contained it with `--permission-mode dontAsk`. That left every `ANALYST_TOOLS` entry, including `read_evidence_snapshot`, as a name with no implementation — a real analyst task would run with no tool access at all. Closing that requires an actual MCP server, chosen as the operator's decision when asked how to build it (over inlining evidence into the prompt, which would grow unboundedly and remove the agent's ability to ask for only what it needs).
 - Options considered: inline all evidence into the prompt instead of a tool (rejected, per the operator's stated preference and the prompt-growth problem); build a full read/write MCP server now; build exactly one read-only tool against the existing evidence store; wait for a later phase.
 - Decision: `electron/agent/evidence-store.ts` opens `horus.sqlite` with better-sqlite3's `readonly: true`, a driver-level guarantee rather than a convention — proven directly in `evidence-store.test.ts` by attempting a write through a raw readonly handle and observing it throw. `electron/agent/evidence-mcp-server.ts` is a stdio MCP server, built with the officially supported `@modelcontextprotocol/sdk` v1.x (not the v2 line, which is beta), exposing exactly one tool: `read_evidence_snapshot`. `electron/agent/evidence-tool-wiring.ts` and a new `McpServerWiring` type in `runtime.ts` connect a task's conceptual tool name to the real `mcp__horus-evidence__read_evidence_snapshot` name Claude Code expects, and `buildClaudeCodeArgs` now accepts an optional `evidenceTools` argument that adds `--mcp-config` and `--allowedTools` only for tools that are both requested by the task and present in the wiring's map.
@@ -587,7 +587,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-060 — The real SpawnImpl, and a combined live-check script
 
 - Date: 2026-08-07
-- Status: proposed — `nodeSpawn` unit-tested against real subprocesses; `npm run agent:live-check` written but not yet executed
+- Status: accepted by Javier Napoles, 2026-08-07 — `nodeSpawn` unit-tested against real subprocesses; `npm run agent:live-check` written and later executed the same day
 - Context: `LocalAgentRuntime` has required an injected `SpawnImpl` since DEC-049, and every prior verification — DEC-056's schema check, DEC-057's isolation check, DEC-058's permission check, DEC-059's tool check — either used a hand-written fake in a test, or the operator constructing and running a `claude -p` command directly in a terminal. **No code in this repository has ever actually launched Claude Code.** Continuing meant closing that gap before attempting the next one: a real analyst task, built by `buildAnalystTask` with its real schema and evidence references, running against the real evidence tool, in one invocation.
 - Options considered: keep verifying by hand indefinitely; write the real `SpawnImpl` only; write it and also assemble a repeatable script that exercises the full path HORUS's own code would take.
 - Decision: `electron/agent/node-spawn.ts` implements `SpawnImpl` with `child_process.spawn`, an argument array, `shell: false`, and a timeout that sends `SIGTERM`. Tested against real subprocesses: a real `node` invocation, an argument containing a shell metacharacter proven to arrive as one literal argv element rather than being interpreted, a real cwd, a real timeout kill, and a nonexistent executable resolving rather than throwing. `scripts/run-analyst-live-check.ts` (`npm run agent:live-check`) seeds two evidence snapshots through the real `createHorusStore` write path, builds a task with `buildAnalystTask`, wires the real evidence tool with `createEvidenceToolWiring`, runs it with `nodeSpawn` and a real isolated working directory, and finally checks the result with `parseAnalystOutput` — the same acceptance function HORUS itself would apply.
@@ -597,7 +597,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-061 — The kickoff prompt names the actual evidence snapshot ids, not just a count
 
 - Date: 2026-08-07
-- Status: proposed — fixed, unit-tested, and reran live. `npm run agent:live-check` produced three evidence-linked observations, one review proposal, and five items correctly reported as missing rather than fabricated — all citing the real seeded snapshot ids.
+- Status: accepted by Javier Napoles, 2026-08-07 — fixed, unit-tested, and reran live. `npm run agent:live-check` produced three evidence-linked observations, one review proposal, and five items correctly reported as missing rather than fabricated — all citing the real seeded snapshot ids.
 - Context: the first full run of `npm run agent:live-check` — the real analyst task, the real evidence tool, the real spawn, all together for the first time (DEC-060) — passed `parseAnalystOutput` but its content showed a real failure. `buildKickoffPrompt` said "analyze the 2 referenced evidence snapshot(s)" without ever naming which two. The run record shows Claude Code guessed ids shaped like `live-check-1786138472999-1` and `-2`, found neither in the evidence store, and correctly reported it could not proceed. The schema accepted the report — `missingInformation` is exactly where an honest "I don't have what I need" belongs — but the run could never have produced an analysis, because the one thing the prompt claimed to reference was never actually said.
 - Options considered: leave it, since the failure was reported honestly rather than fabricated; put the evidence ids in `--system-prompt` instead of the kickoff; put them in the kickoff, where the per-task specifics belong.
 - Decision: `buildKickoffPrompt` now lists `task.evidence`'s snapshot ids explicitly. The system prompt still carries only the role's fixed rules, which apply to every task; the kickoff carries what's specific to this one, which is what a kickoff is for.
@@ -609,7 +609,7 @@ The five decisions below were drafted alongside the Phase 6 foundation correctio
 ### DEC-062 — Real Finescape and SEASONS EATS evidence exists and is readable, but not from where the agent runs
 
 - Date: 2026-08-07
-- Status: proposed — verified live against the real file. The operator ran `claude -p` from `/tmp/horus-finescape-check` — deliberately unrelated to the repository — pointed at the actual `cache/phase5/horus.sqlite` with `HORUS_EVIDENCE_BASE` set to the repository root. Claude Code called `read_evidence_snapshot` for the real `raw_8ecb903a...` row and reported "Position 11: Finescape and Sons," matching the raw JSON exactly.
+- Status: accepted by Javier Napoles, 2026-08-07 — verified live against the real file. The operator ran `claude -p` from `/tmp/horus-finescape-check` — deliberately unrelated to the repository — pointed at the actual `cache/phase5/horus.sqlite` with `HORUS_EVIDENCE_BASE` set to the repository root. Claude Code called `read_evidence_snapshot` for the real `raw_8ecb903a...` row and reported "Position 11: Finescape and Sons," matching the raw JSON exactly.
 - Context: before attempting step 4, checked whether the retained Finescape and Sons and SEASONS EATS evidence the roadmap names actually exists anywhere `read_evidence_snapshot` could reach. It does: `cache/phase5/horus.sqlite`, a database separate from the one the Electron app writes, holds 64 rows across `serpapi.google_maps`, `serpapi.google_maps_reviews`, `pagespeed.mobile`, and several `google.maps.public-*` and `horus.website-analysis` sources, spanning 2026-08-06 22:59:58Z to 2026-08-07 02:37:55Z. Its schema predates DEC-047 (`payload_hash ... UNIQUE`), which does not affect reading. Its `raw_snapshots.storage_path` values are relative — `cache/phase5/raw/...` in some rows, `../../cache/phase5/raw/...` in others, both resolving correctly only from the HORUS repository root — because whatever produced this database (not the current `electron/persistence.ts` write path, which has always written absolute paths) ran from two different working directories at different times. `evidence-mcp-server.ts` runs from the isolated working directory DEC-057 deliberately created, which is never the repository root, so reading this evidence as-is would fail with a missing-file error the moment step 4 tried it.
 - Options considered: leave the legacy paths as-is and require whoever runs a replay to `cd` to the repository root first (fragile, undocumented, and breaks the isolation DEC-057 exists for); rewrite `storage_path` in the legacy database to be absolute (violates the rule that raw evidence is never edited); resolve a relative `storage_path` against a caller-supplied base directory, defaulting to the reading process's own cwd for backward compatibility.
 - Decision: `openReadOnlyEvidenceStore` takes an optional `basePath`, consulted only when a row's `storage_path` is relative. Every snapshot HORUS's own write path has ever produced uses an absolute path, so this changes nothing for current and future evidence. `createEvidenceToolWiring` and `evidence-mcp-server.ts` (via `HORUS_EVIDENCE_BASE`) carry it through. A shadow-mode replay against `cache/phase5/horus.sqlite` must supply the HORUS repository root as `basePath`.
