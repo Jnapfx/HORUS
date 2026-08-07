@@ -103,9 +103,15 @@ Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2
 
 Outcome: V1 is reliable enough for repeated use.
 
-- [ ] Address findings from the first real use.
-- [ ] Review security, privacy, and the handling of third-party business data.
-- [ ] Confirm minimum performance and cost per prospect.
-- [ ] Prepare removal and recovery procedures for published demonstrations.
+- [ ] Correct the high-priority foundation findings before agent tools are enabled: redact credential-bearing request data, preserve each retrieval as a distinct historical snapshot, and validate workflow commands and approvals in the Electron main process.
+- [ ] Implement the provider-neutral local agent boundary proposed in [`AGENT_ARCHITECTURE.md`](AGENT_ARCHITECTURE.md), beginning with a subscription-backed Claude Code availability/authentication check and one queued, bounded analyst task.
+- [ ] Keep scoring, freshness, state transitions, approval validity, publication authorization, Gmail handoff, and delivery declaration deterministic and outside model authority.
+- [ ] Record agent instructions, evidence IDs, tool activity, structured output, runtime identity, failure state, and operator disposition without storing credentials.
+- [ ] Replay Finescape and Sons and SEASONS EATS in shadow mode and compare the agent output with retained evidence and historical operator decisions.
+- [ ] Add concept and outreach composition only after the analyst replay passes its evidence and missing-data checks.
+- [ ] Review security, prompt-injection resistance, privacy, subscription limits, product terms, and the handling of third-party business data.
+- [ ] Confirm minimum performance, repeatability, SerpApi consumption, and model-runtime availability per prospect.
+- [ ] Prepare and test recovery procedures for interrupted agent runs and removal/recovery procedures for published demonstrations.
+- [ ] Run no additional real prospect, publication, or outreach until separately authorized after shadow-mode validation.
 
-**Exit criterion:** a decision is recorded on whether to continue with V1 as built, revise it, or reconsider the approach.
+**Exit criterion:** the corrected foundation and shadow-mode agent workflow pass their acceptance checks, Claude unavailability is recoverable without corrupting state, no agent can bypass either approval gate, and a decision is recorded on whether to retain the subscription-backed runtime, change provider/runtime, revise V1, or reconsider the approach.

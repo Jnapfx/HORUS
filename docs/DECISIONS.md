@@ -428,6 +428,17 @@ This file serves as an index. Complex decisions may later be moved to individual
 - Consequences: the project now has a repeatable, operator-authenticated direct-upload path, but no credential or Wrangler dependency is committed to the repository. The deployment remains a concept, not an official business website: it has a visible HORUS notice, `noindex, nofollow`, and no form, contact route, pricing, testimonial, or unsupported claim. Publication does not authorize outreach or contact; those retain their separate gates under DEC-004 and DEC-041.
 - Supersedes: the production-client uncertainty described in DEC-043; its Phase 3 test-only conclusion remains historical.
 
+### DEC-045 — Phase 6 evaluates subscription-backed Claude Code as the first local agent runtime
+
+- Date: 2026-08-07
+- Status: accepted for Phase 6 evaluation; implementation pending
+- Context: HORUS needs reasoning support for evidence interpretation, concept composition, and outreach drafting, but the operator does not want to introduce usage-metered model API billing during the initial internal pilot. HORUS is a local, single-operator application, and the operator already has an eligible Claude subscription.
+- Options considered: integrate the usage-metered Anthropic API immediately; use Claude Free through manual copy and paste; use a local open-weight model; invoke a locally authenticated Claude Code runtime under the operator's existing subscription; defer agents entirely.
+- Decision: Phase 6 first evaluates Claude Code as a local subprocess authenticated by the operator's existing subscription. The Electron main process, never the renderer, coordinates bounded agent tasks and validates structured results. No Anthropic API key or separately metered Anthropic API dependency is added for the initial pilot. The runtime is placed behind a provider-neutral boundary, and the detailed proposal is recorded in `AGENT_ARCHITECTURE.md`.
+- Consequences: subscription limits, authentication state, network availability, and product terms become explicit runtime dependencies. The first implementation uses one execution queue and shadow-mode replay before any new real prospect. Claude supplies analysis and drafts only: deterministic scoring, evidence retention, approval validity, publication, Gmail handoff, and delivery state remain controlled by HORUS code. This decision applies only to the founder's local internal use and must be reconsidered before any hosted, multi-user, distributed, or customer-facing use.
+- Sources: Anthropic's Claude Code setup and Agent SDK documentation, verified 2026-08-07, document eligible subscription authentication, non-interactive/programmatic execution, structured output, tools, permissions, and sessions.
+- Supersedes: not applicable
+
 ## Template
 
 ### DEC-XXX — Title

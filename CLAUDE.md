@@ -22,15 +22,17 @@ These are not preferences. Each is a recorded decision with reasoning behind it.
 6. **A sample proves presence, never absence.** If partial data does not show something, that is `insufficient_data`, not evidence the thing is missing. Never score a business poorly because retrieval failed (charter 9.6, 10.4).
 7. **Changing a scoring parameter creates a new model version.** Never edit `reputation-scoring-v1` or `web-opportunity-v2` in place. Stored results record the version that produced them (DEC-007, DEC-011).
 8. **Accepted decisions are never edited to hide the past.** Add a superseding decision and mark the old one `superseded by DEC-XXX`. See DEC-011 and DEC-013 for examples.
+9. **Agents never own consequential actions.** Claude may analyze evidence and prepare structured drafts, but scoring, freshness, state transitions, approvals, publication authorization, Gmail handoff, and delivery declaration remain enforced by HORUS code. No agent may publish or contact a business (DEC-045).
 
 ## Where things are
 
 | File | Contents |
 | --- | --- |
 | `docs/PROJECT_CHARTER.md` | The full specification, 18 sections. The source of truth. |
-| `docs/DECISIONS.md` | 43 decisions with context, options, and consequences. Read before changing anything structural. |
+| `docs/DECISIONS.md` | 45 decisions with context, options, and consequences. Read before changing anything structural. |
 | `docs/CURRENT_STATE.md` | What is done, what is next, known weaknesses. Update at the end of every working session. |
-| `docs/ROADMAP.md` | Seven phases. Phases 0–2 are complete; Phase 3 is active. |
+| `docs/ROADMAP.md` | Seven phases. Phases 0–5 are complete; Phase 6 is pending. |
+| `docs/AGENT_ARCHITECTURE.md` | Proposed Phase 6 local-agent architecture, safety boundary, shadow-mode sequence, and acceptance criteria. |
 | `docs/checkpoints/` | Evidence of completed phases. Immutable once written. |
 | `config/local.json` | Operator config. Gitignored. Never read its contents into documentation. |
 | `config/local.json.example` | Structure, no values. Committed. |
@@ -39,19 +41,19 @@ Charter sections worth knowing by number: **9** reputation scoring, **10** web o
 
 ## Current state
 
-Phases 0–2 are complete and approved (2026-08-05–06). **Phase 3 — Technical Foundation is active.**
+Phases 0–5 are complete and approved (2026-08-05–06). **Phase 6 — Validation and Hardening is pending.**
 
-The repository now includes an executable Electron/React/TypeScript foundation with SQLite-backed local persistence and automated checks. Calibration retrieved and scored 30 representative businesses; no business has been contacted.
+The repository includes an executable Electron/React/TypeScript foundation with SQLite-backed local persistence and automated checks. Calibration retrieved and scored 30 representative businesses. Phase 5 completed one real, approval-gated SEASONS EATS run with a bounded public concept and operator-confirmed manual outreach; HORUS did not send the email.
 
-### What Phase 3 is for
+### What Phase 6 is for
 
-Phase 3 may select the implementation architecture, establish the project skeleton and storage layer, and verify the credential-free Gmail compose handoff and Cloudflare Pages paths. It requires architecture approval. See `docs/ROADMAP.md`.
+Phase 6 corrects the foundation findings, validates repeatability and recovery, and evaluates locally orchestrated agents without weakening evidence or approvals. DEC-045 authorizes evaluation of Claude Code authenticated through the operator's existing subscription as the first local runtime; it does not claim the runtime is implemented or permanently suitable.
 
-**No phase authorizes publication or outreach without the two explicit approvals.** First real contact remains Phase 5.
+**No phase authorizes publication or outreach without the two explicit approvals.** Phase 6 begins with shadow-mode replay and does not itself authorize another real prospect, public concept, or outreach.
 
 ### Suggested next step
 
-Complete the remaining Phase 3 adapter contracts and verify the credential-free Gmail handoff with a test-only message, without expanding scope.
+Correct the credential-bearing request URL, historical snapshot, and main-process state-validation findings. Then implement one bounded, queued Claude Code analyst task and replay the retained Finescape and SEASONS EATS cases in shadow mode. See `docs/AGENT_ARCHITECTURE.md`.
 
 ### Numbers most likely to be wrong
 

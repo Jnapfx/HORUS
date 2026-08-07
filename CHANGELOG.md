@@ -39,6 +39,7 @@ The format uses the categories `Added`, `Changed`, `Fixed`, `Deprecated`, `Remov
 - The source-bounded Finescape and Sons concept at `https://horus-finescape-concept.pages.dev`, including a visible non-official notice, `noindex, nofollow`, no contact route, and no unsupported claims.
 - Phase 5 in-progress checkpoint: `docs/checkpoints/2026-08-06_phase-5-first-live-concept.md`.
 - First completed real-use run: SEASONS EATS qualification with a conservative 73.06/100 lower-bound score, a separately approved and bounded public `noindex` concept, fresh-data validation, Gmail compose handoff, operator-confirmed manual send, and a pending follow-up record.
+- Phase 6 agent architecture proposal and DEC-045: evaluate a provider-neutral, locally orchestrated Claude Code runtime using the operator's existing subscription, with structured outputs, shadow-mode replay, deterministic approval boundaries, and no usage-metered model API in the initial pilot.
 
 ### Changed
 

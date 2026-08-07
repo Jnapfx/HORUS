@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-08-06
+Last updated: 2026-08-07
 
 ## Summary
 
@@ -28,7 +28,7 @@ Evidence: [`checkpoints/2026-08-06_phase-4-first-vertical-workflow.md`](checkpoi
 
 Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2026-08-06_phase-5-first-live-concept.md).
 
-**Phase 6 — Validation and Hardening: pending.** It may begin with the learnings from the first real run; it does not authorize additional public concepts or outreach by itself.
+**Phase 6 — Validation and Hardening: pending.** Its proposed implementation sequence now includes correcting the foundation findings, then evaluating locally orchestrated agents through the operator's existing Claude subscription and Claude Code before considering a usage-metered model API. The agent runtime is documented but not implemented. Phase 6 begins in shadow mode and does not authorize additional public concepts or outreach by itself (DEC-045, `AGENT_ARCHITECTURE.md`).
 
 ## Completed
 
@@ -80,6 +80,7 @@ Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2
 - [x] Add a main-process-only SerpApi discovery executor and an automated contract test proving that the API key is never returned in the payload.
 - [x] Publish and subsequently retire the Finescape and Sons concept after a documented reputation score below threshold; the retained Cloudflare Pages project now serves no business content.
 - [x] Complete the first qualified real prospect run with SEASONS EATS: evidence-gated qualification, separately approved public concept, fresh outreach evidence, Gmail draft handoff, operator-confirmed manual send, and pending follow-up record.
+- [x] Record the Phase 6 agent-runtime direction: evaluate a locally authenticated, subscription-backed Claude Code process behind a provider-neutral main-process boundary, without adding usage-metered model API billing to the initial pilot (DEC-045).
 
 ## Phase 1 evidence
 
@@ -109,7 +110,7 @@ The complete PageSpeed pass covers 28 of 29 public website URLs in the 30-busine
 
 ## Next
 
-Phase 6 may review and harden the process from the completed SEASONS EATS run. The pending SEASONS EATS response should be recorded when the operator reports it. Sunshine Cuisine and Caribbean Bakery & Mini Mart remain separate discovery candidates; reputation, fresh evidence, and explicit approvals remain required before any new outreach.
+Phase 6 may review and harden the process from the completed SEASONS EATS run. It should first correct the credential, historical-snapshot, and main-process validation findings, then implement one bounded Claude Code analyst task and replay Finescape and SEASONS EATS in shadow mode. The pending SEASONS EATS response should be recorded when the operator reports it. Sunshine Cuisine and Caribbean Bakery & Mini Mart remain separate discovery candidates; reputation, fresh evidence, explicit approvals, and separate real-use authorization remain required before any new outreach.
 
 ## Blockers
 
@@ -153,6 +154,7 @@ These do not block starting. They are what calibration exists to resolve, and th
 | Tests | 25 automated tests passing |
 | Infrastructure | Local SQLite plus immutable JSON evidence manifest |
 | Integrations | Non-production contracts implemented; Gmail compose handoff exercised with operator-confirmed manual send |
+| Agents | Architecture and subscription-backed Claude Code evaluation direction documented; no runtime or agent is implemented |
 | Design | Functional design and visual baseline approved |
 | Deployment | Cloudflare Pages direct deployments verified for bounded public concepts |
 
