@@ -1,1 +1,713 @@
-.workflow-shell{max-width:1240px;margin:0 auto;padding:40px 28px;color:#18202b}.topbar,.workbench,.audit-strip{display:flex;gap:24px}.topbar{align-items:center;justify-content:space-between}.topbar h1,.stage-panel h2{margin:4px 0 0;font-family:Georgia,serif;font-weight:500}.eyebrow{margin:0;font-size:.72rem;font-weight:700;letter-spacing:.12em;color:#537065}.local-badge,.case-notice,.notice,.gate,.success{border-radius:8px;padding:12px 14px}.local-badge{background:#e1eee9;color:#214d3e;font-size:.85rem}.case-notice{margin:26px 0;background:#f5efe0;border:1px solid #e5d7ae}.workbench{align-items:stretch}.workbench nav{width:238px;flex:none}.workbench ol{list-style:none;margin:0;padding:0;border-left:1px solid #d7ddd9}.workbench li{display:grid;grid-template-columns:42px 1fr;gap:9px;padding:12px 14px;color:#68736e}.workbench li span{font-size:.75rem;font-weight:700}.workbench li strong{font-size:.88rem}.workbench li.active{color:#173b30;background:#e8f1ec;border-left:3px solid #2a7960;margin-left:-1px}.workbench li.complete{color:#2c7560}.stage-panel{flex:1;min-height:455px;background:#fff;border:1px solid #d9dfdb;border-radius:12px;padding:34px;box-shadow:0 8px 30px #1b2a2510}.stage-panel>p{max-width:690px;line-height:1.6}.details,.audit-strip{margin:24px 0}.details{display:flex;gap:32px;flex-wrap:wrap}.details div{min-width:145px}.details dt,.audit-strip span{font-size:.72rem;font-weight:700;letter-spacing:.08em;color:#66766e}.details dd{margin:5px 0 0;font-weight:600}.prospect-card,.preview-box,.message-preview{margin:20px 0;padding:20px;border:1px solid #d9dfdb;border-radius:10px;background:#fbfcfb}.prospect-card h3,.preview-box h3{margin:0 0 6px}.prospect-card div{display:flex;gap:10px;flex-wrap:wrap}.prospect-card span{padding:5px 8px;background:#e9f2ee;border-radius:99px;font-size:.8rem}.evidence-list,.checklist{padding-left:20px;line-height:1.8}.checklist{list-style:none;padding-left:0}.gate{background:#f7e9e7;color:#78362d}.success{background:#e5f3ea;color:#235b40}button{border:0;border-radius:7px;background:#1b604d;color:#fff;padding:11px 15px;font:inherit;font-weight:700;cursor:pointer}button:hover{background:#134b3c}.secondary{background:#e7eeea;color:#275443}.secondary:hover{background:#d5e2db}.button-row{display:flex;gap:10px;flex-wrap:wrap}.search-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:22px 0}.search-form label{display:grid;gap:6px;font-size:.82rem;font-weight:700;color:#42504a}.search-form input{border:1px solid #bac7c0;border-radius:6px;padding:9px;font:inherit;color:#18202b}.error,.empty-state{margin:18px 0;padding:16px;border-radius:8px}.error{background:#f9e9e6;color:#7c3028}.error ul{margin:8px 0 0;padding-left:18px}.empty-state{border:1px dashed #a9b6af;background:#fafbfa}.audit-strip{justify-content:space-between;border-top:1px solid #d9dfdb;padding-top:18px}.audit-strip>div{display:grid;gap:5px}@media(max-width:780px){.workflow-shell{padding:22px 16px}.topbar,.workbench,.audit-strip{display:block}.local-badge{display:inline-block;margin-top:12px}.workbench nav{width:auto;margin-bottom:16px}.workbench ol{display:flex;overflow:auto;border-left:0;border-bottom:1px solid #d7ddd9}.workbench li{min-width:138px}.stage-panel{padding:24px}.audit-strip>div{margin:15px 0}.search-form{grid-template-columns:1fr}}
+/*
+ * HORUS operator interface — component layer (DEC-083).
+ *
+ * Reads the tokens defined in `index.css`. Two rules from DEC-083 shape most of
+ * what follows and are worth stating once rather than repeating at every use:
+ *
+ *   Rule 4 — no quantity fills a gauge, meter, bar, or ring, and no quantity is
+ *   animated toward its value. Scores render as tabular numerals beside their
+ *   denominator and their status word. This is not a stylistic preference: a
+ *   filling bar cannot distinguish a low score from `insufficient_data`, and
+ *   DEC-073 recorded a live case (71.1 against a 70 threshold, correctly not
+ *   qualified) where exactly that distinction was the whole result.
+ *
+ *   Rule 5 — the two DEC-004 gates carry gravity, never reward. `.gate-zone`
+ *   below is the heaviest, most separated surface in the application, and it
+ *   has no transition, no celebration, and no success animation.
+ *
+ * Machine-produced values (scores, ids, timestamps, URLs) are monospace;
+ * operator prose is sans. Provenance is legible before the value is read.
+ */
+
+/* ---------------------------------------------------------------- shell --- */
+
+.workflow-shell {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5) var(--space-7);
+  color: var(--text-primary);
+  font-size: var(--step-0);
+  line-height: 1.55;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.topbar h1 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--step-3);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.local-badge {
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  background: var(--surface-1);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------- semantic blocks ---
+ * Four meanings, one system (DEC-036, DEC-083 rule 1). Each is carried by a
+ * left rule, a wash, and — in every instance in `App.tsx` — the surrounding
+ * text itself, which states the state in words. Colour is never alone.       */
+
+.notice,
+.gate,
+.success,
+.error,
+.case-notice {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--border-control);
+  background: var(--surface-1);
+  font-size: var(--step-0);
+}
+
+.notice {
+  border-left-color: var(--accent-info);
+  background: var(--wash-info);
+  color: var(--text-secondary);
+}
+
+.case-notice {
+  border-left-color: var(--accent-caution);
+  background: var(--wash-caution);
+  color: var(--text-primary);
+}
+
+.gate {
+  border-left-color: var(--accent-blocked);
+  background: var(--wash-blocked);
+  color: var(--text-primary);
+}
+
+.success {
+  border-left-color: var(--accent-approved);
+  background: var(--wash-approved);
+  color: var(--text-primary);
+}
+
+.error {
+  border-left-color: var(--accent-blocked);
+  background: var(--wash-blocked);
+  color: var(--text-primary);
+}
+
+.error strong {
+  color: var(--accent-blocked);
+}
+
+.error ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+
+.error p,
+.notice p {
+  margin: var(--space-2) 0 0;
+}
+
+.empty-state {
+  margin: var(--space-4) 0;
+  padding: var(--space-5);
+  border: 1px dashed var(--border-control);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+}
+
+.empty-state h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+}
+
+/* ------------------------------------------------------------ workbench ---
+ * Focus mode: the stage rail recedes into the shell and the active stage panel
+ * is the lit plane. Atmosphere here is a by-product of hierarchy, not an
+ * addition to it.                                                            */
+
+.workbench {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.workbench nav {
+  width: 250px;
+  flex: none;
+}
+
+.workbench ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.workbench li {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  color: var(--text-muted);
+  transition: color var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease);
+}
+
+.workbench li span {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.workbench li strong {
+  font-size: var(--step-0);
+  font-weight: 500;
+}
+
+.workbench li.complete {
+  color: var(--text-secondary);
+}
+
+.workbench li.complete span {
+  color: var(--accent-approved);
+}
+
+.workbench li.active {
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border-left-color: var(--accent-info);
+}
+
+.workbench li.active span {
+  color: var(--accent-info);
+}
+
+.stage-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 455px;
+  padding: var(--space-6);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.stage-panel h2 {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--step-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.stage-panel > p {
+  max-width: 70ch;
+  color: var(--text-secondary);
+}
+
+/* ----------------------------------------------------------- typography --- */
+
+h3,
+h4 {
+  margin: var(--space-5) 0 var(--space-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: var(--step-1);
+}
+
+h4 {
+  font-size: var(--step-0);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+a {
+  color: var(--accent-info);
+  text-underline-offset: 2px;
+}
+
+/* Machine-produced values. Everything below is a number, an identifier, a
+ * timestamp, or a URL that HORUS or an API produced — never operator prose. */
+.score-breakdown,
+.draft-list,
+.evidence-picker li,
+.shortlist-view ol,
+.tracker-list,
+.details dd,
+.audit-strip strong {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step--1);
+}
+
+/* --------------------------------------------------------------- lists --- */
+
+.evidence-list,
+.checklist {
+  padding-left: var(--space-5);
+  line-height: 1.75;
+}
+
+.evidence-list > li {
+  margin-bottom: var(--space-3);
+}
+
+.checklist {
+  list-style: none;
+  padding-left: 0;
+  color: var(--text-secondary);
+}
+
+.details {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin: var(--space-5) 0;
+}
+
+.details div {
+  min-width: 145px;
+}
+
+.details dt,
+.audit-strip span {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.details dd {
+  margin: var(--space-1) 0 0;
+  color: var(--text-primary);
+}
+
+.audit-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin: var(--space-6) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.audit-strip > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* -------------------------------------------------------------- cards ----- */
+
+.prospect-card,
+.preview-box,
+.message-preview {
+  margin: var(--space-5) 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.prospect-card h3,
+.preview-box h3 {
+  margin-top: 0;
+}
+
+.prospect-card > div {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.prospect-card > div span {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+}
+
+.preview-box small {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  color: var(--accent-caution);
+}
+
+/* ------------------------------------------------------------ controls --- */
+
+button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--action-fill);
+  color: var(--action-text);
+  padding: 10px var(--space-4);
+  font: inherit;
+  font-size: var(--step-0);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease), border-color var(--motion-fast) var(--ease);
+}
+
+button:hover:not(:disabled) {
+  background: var(--action-fill-hover);
+}
+
+button:disabled {
+  background: transparent;
+  border-color: var(--border-control);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* A dimmed control reads as absent rather than blocked, so every disabled
+ * control in `App.tsx` is paired with a `.control-hint` stating why it is
+ * disabled — DEC-083 rule 2, extending DEC-038's no-colour-only rule. */
+.control-hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--step--1);
+  color: var(--accent-caution);
+}
+
+.secondary {
+  background: transparent;
+  border-color: var(--border-control);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text-secondary);
+}
+
+.button-row {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.search-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+
+label {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+input,
+textarea {
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  padding: 9px var(--space-3);
+  background: var(--surface-3);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--step-0);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input[type='checkbox'] {
+  accent-color: var(--accent-info);
+  width: 16px;
+  height: 16px;
+}
+
+.confirm-spend {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: var(--step-0);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+/* ----------------------------------------------------- appended panels ----
+ * DEC-069 through DEC-082 added these below the representative workflow and
+ * the stylesheet never covered any of them. This is their first treatment.  */
+
+.discovery-panel,
+.analyst-panel {
+  margin-top: var(--space-6);
+  padding: var(--space-6);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.discovery-panel h2,
+.analyst-panel h2 {
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: var(--step-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.discovery-panel > p,
+.analyst-panel > p {
+  max-width: 78ch;
+  color: var(--text-secondary);
+}
+
+.discovery-panel.collapsed,
+.analyst-panel.collapsed {
+  padding: 0;
+  border: 0;
+  background: none;
+  margin-top: var(--space-4);
+}
+
+.discovery-result {
+  margin-top: var(--space-5);
+}
+
+.evidence-picker,
+.draft-list,
+.tracker-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.evidence-picker li,
+.draft-list li,
+.tracker-list li {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.evidence-picker label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.shortlist-view {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.shortlist-view ol {
+  padding-left: var(--space-5);
+}
+
+.shortlist-view ol li {
+  padding: var(--space-2) 0;
+  color: var(--text-primary);
+}
+
+.candidate-score {
+  margin: var(--space-3) 0 0;
+}
+
+/* Rule 4: a score is numerals, a denominator, and a status word. There is no
+ * bar to fill, precisely so that a low value and `insufficient_data` cannot
+ * be rendered as the same picture. */
+.score-breakdown {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-info);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.score-breakdown p {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+}
+
+.score-breakdown ul {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-5);
+  line-height: 1.7;
+}
+
+.analyst-result {
+  margin-top: var(--space-4);
+}
+
+.analyst-result span[class^='kind-'] {
+  display: inline-block;
+  margin-right: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.kind-observed {
+  background: var(--wash-info);
+  color: var(--accent-info);
+}
+
+/* `insufficient_data` is a distinct result, never a low value and never a
+ * failure — charter 9.6 / 10.4, hard rule 6. It gets caution, not blocked. */
+.kind-insufficient_data {
+  background: var(--wash-caution);
+  color: var(--accent-caution);
+}
+
+.website-screenshot {
+  display: block;
+  max-width: 100%;
+  margin-top: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+/* The demonstration renders its own light stylesheet inside this frame and
+ * shares no tokens with the operator interface (DEC-083 rule 6). The frame is
+ * given a light-neutral surround so the preview does not read as part of the
+ * dark chrome around it. */
+.demo-preview-frame {
+  width: 100%;
+  height: 480px;
+  margin-top: var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+/* ------------------------------------------------------------- gates -----
+ * DEC-004's two blocking gates. The heaviest, most separated surfaces in the
+ * application. No transition, no reward, no completion effect: pressing one
+ * of these publishes to the open internet or opens a message to a real
+ * business owner, and it should feel exactly that consequential.            */
+
+.gate-zone {
+  margin: var(--space-6) 0;
+  padding: var(--space-5);
+  border: 1px solid var(--accent-blocked);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.gate-zone > h4:first-child {
+  margin-top: 0;
+  color: var(--accent-blocked);
+}
+
+.gate-zone .notice {
+  background: transparent;
+  border-left-color: var(--border-control);
+  color: var(--text-secondary);
+}
+
+/* ---------------------------------------------------------- responsive --- */
+
+@media (max-width: 900px) {
+  .workflow-shell {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .topbar,
+  .workbench,
+  .audit-strip {
+    display: block;
+  }
+
+  .local-badge {
+    display: inline-block;
+    margin-top: var(--space-3);
+  }
+
+  .workbench nav {
+    width: auto;
+    margin-bottom: var(--space-4);
+  }
+
+  .workbench ol {
+    display: flex;
+    overflow: auto;
+    border-left: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .workbench li {
+    min-width: 150px;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .workbench li.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--accent-info);
+  }
+
+  .stage-panel,
+  .discovery-panel,
+  .analyst-panel {
+    padding: var(--space-5);
+  }
+
+  .audit-strip > div {
+    margin: var(--space-4) 0;
+  }
+
+  .search-form {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,3 +1,140 @@
-:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
-* { box-sizing: border-box; }
-body { min-width: 320px; min-height: 100vh; margin: 0; }
+/*
+ * HORUS operator interface — foundation layer (DEC-083).
+ *
+ * A dark neutral instrument-panel register, bounded by DEC-083's six rules and
+ * still governed by DEC-036's principles: chroma-neutral foundations, dense but
+ * scannable panels, exactly four semantic accent meanings, and no element whose
+ * only job is to make the operator feel good about a number or a state.
+ *
+ * Contrast is measured, not assumed. Every ratio noted below is against the
+ * surface the value is actually used on, per DEC-083's contrast clause and
+ * DEC-038's accessibility baseline. Body text >= 4.5:1, large text >= 3:1,
+ * control boundaries and focus indicators >= 3:1.
+ *
+ * This file styles the operator interface only. The demonstration generator in
+ * `src/domain/demonstration.ts` keeps its own self-contained light stylesheet
+ * and shares nothing here — DEC-083 rule 6, DEC-037, DEC-025.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* --- Surfaces. Chroma-neutral, cool. Elevation rises with luminance. ---
+   * Adjacent planes sit ~1.2:1 apart, which is fine for surfaces — WCAG sets
+   * no surface-to-surface requirement — but it is why depth alone may never
+   * bound a control. Anything bounding a control uses --border-control. */
+  --surface-0: #0e1116; /* application shell */
+  --surface-1: #151922; /* panel */
+  --surface-2: #1a1f29; /* raised panel, the lit evidence plane */
+  --surface-3: #10141b; /* inset: inputs, code, preview wells */
+
+  /* --- Text. Ratios quoted against --surface-2, the densest reading plane. */
+  --text-primary: #e4e7ec;   /* 13.3:1 — deliberately not pure white; #fff on
+                              * near-black halates on a laptop panel */
+  --text-secondary: #9ba5b4; /*  6.6:1 */
+  --text-muted: #808b9c;     /*  4.8:1 — the floor. Nothing dimmer carries text. */
+
+  /* --- The single semantic accent system. Four meanings, no more (DEC-036,
+   * DEC-083 rule 1). A fifth meaning requires a new decision. Every one of
+   * these was re-derived upward for dark; the light baseline's accents
+   * (#1b604d, #78362d, #537065) all fall under 3:1 when inverted. */
+  --accent-info: #6fa8f5;     /* 6.8:1 — information */
+  --accent-caution: #f0b858;  /* 9.2:1 — caution */
+  --accent-blocked: #ff8f85;  /* 7.5:1 — blocked action */
+  --accent-approved: #5fd39b; /* 8.9:1 — completed approval */
+
+  /* Tinted backings for the same four meanings. Backings only — never the
+   * sole carrier of meaning, per DEC-083 rule 2 and DEC-038. */
+  --wash-info: #16233a;
+  --wash-caution: #2a2213;
+  --wash-blocked: #2e1a1a;
+  --wash-approved: #12291f;
+
+  /* --- Borders. --border-control is the >= 3:1 boundary required for anything
+   * the operator can operate. --border-subtle separates surfaces only and is
+   * deliberately below 3:1; it must never be the only edge of a control. */
+  --border-control: #737c8c; /* 3.9:1 vs --surface-2 */
+  --border-subtle: #2a313d;
+
+  /* --- Action. The primary action is a lit neutral, not a coloured one:
+   * using the approved-green for "do something" would conflate an action with
+   * a completed approval and break the four-meaning discipline. */
+  --action-fill: #e4e7ec;
+  --action-text: #10141b; /* 14.9:1 on --action-fill */
+  --action-fill-hover: #ffffff;
+
+  /* Focus: two-tone, so the ring clears 3:1 against any surface or fill it
+   * lands on rather than only against the one it was designed over. */
+  --focus-ring: #a8c7ff;
+
+  /* --- Type. Machine-produced values are monospace and operator prose is
+   * sans, so provenance is legible before the value is read (DEC-083). */
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --step--1: 0.78rem;
+  --step-0: 0.9rem;
+  --step-1: 1.05rem;
+  --step-2: 1.35rem;
+  --step-3: 1.75rem;
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Motion serves continuity, change-highlighting, or focus only, <= 200ms
+   * (DEC-083 rule 3). Nothing animates toward a value (rule 4) and nothing
+   * celebrates an approval (rule 5). */
+  --motion-fast: 120ms;
+  --motion: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  font-family: var(--font-sans);
+  font-size: 16px;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--surface-0);
+}
+
+/* A visible focus indicator on every operable control, at >= 3:1 against both
+ * the control and its background (DEC-038, DEC-083 rule 2). The inner dark
+ * ring guarantees the outer light ring is legible on a lit fill too. */
+:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--surface-0),
+    0 0 0 4px var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
