@@ -112,6 +112,7 @@ export function RealDiscoverySearch() {
           {selectedProspectId && (
             <ProspectRecord
               id={selectedProspectId}
+              evidenceRetrievedAt={result.retrievedAt}
               candidates={result.candidates}
               scores={scores}
               audits={audits}
