@@ -103,10 +103,17 @@ Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2
 
 Outcome: V1 is reliable enough for repeated use.
 
-- [ ] Correct the high-priority foundation findings before agent tools are enabled: redact credential-bearing request data, preserve each retrieval as a distinct historical snapshot, and validate workflow commands and approvals in the Electron main process.
-- [ ] Implement the provider-neutral local agent boundary proposed in [`AGENT_ARCHITECTURE.md`](AGENT_ARCHITECTURE.md), beginning with a subscription-backed Claude Code availability/authentication check and one queued, bounded analyst task.
-- [ ] Keep scoring, freshness, state transitions, approval validity, publication authorization, Gmail handoff, and delivery declaration deterministic and outside model authority.
-- [ ] Record agent instructions, evidence IDs, tool activity, structured output, runtime identity, failure state, and operator disposition without storing credentials.
+- [x] Correct the high-priority foundation findings before agent tools are enabled: redact credential-bearing request data, preserve each retrieval as a distinct historical snapshot, and validate workflow commands and approvals in the Electron main process. (DEC-046, DEC-047, DEC-048)
+- [x] Implement the provider-neutral local agent boundary proposed in [`AGENT_ARCHITECTURE.md`](AGENT_ARCHITECTURE.md), beginning with a subscription-backed Claude Code availability/authentication check and one queued, bounded analyst task. (DEC-049, DEC-056, DEC-059, DEC-060, DEC-061)
+- [x] Keep scoring, freshness, state transitions, approval validity, publication authorization, Gmail handoff, and delivery declaration deterministic and outside model authority. (DEC-045; enforced in code, and DEC-086/DEC-087 now pin the deterministic scores to reproducible evidence)
+- [x] Record agent instructions, evidence IDs, tool activity, structured output, runtime identity, failure state, and operator disposition without storing credentials. (DEC-046, DEC-056, DEC-067)
+**Status note, 2026-08-08.** The four boxes above are ticked against recorded decisions; the six below are genuinely open. This note exists because the checklist had drifted — every box read unchecked while several were demonstrably complete, which made the roadmap less trustworthy than the decision log it summarizes.
+
+Two items need the operator's judgment rather than more work:
+
+- *"Add concept and outreach composition only after the analyst replay passes its evidence and missing-data checks."* Concept and outreach composition **were** built, in DEC-079 through DEC-081. The replay in DEC-063/DEC-064 did pass its evidence and missing-data checks, so the stated precondition was arguably met — but the retain/revise/reject decision on the runtime (validation-sequence step 8) was not, and still is not, made. Whether that satisfies this box is a scope call, not a fact, so it is left unticked and flagged rather than resolved silently.
+- The exit criterion requires a recorded decision on whether to retain the subscription-backed runtime. Nothing in the decision log records one.
+
 - [ ] Replay Finescape and Sons and SEASONS EATS in shadow mode and compare the agent output with retained evidence and historical operator decisions.
 - [ ] Add concept and outreach composition only after the analyst replay passes its evidence and missing-data checks.
 - [ ] Review security, prompt-injection resistance, privacy, subscription limits, product terms, and the handling of third-party business data.
