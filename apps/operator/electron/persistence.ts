@@ -32,6 +32,9 @@ export type RawSnapshotSummary = { id: string; source: string; retrievedAt: stri
 export type AgentDraftInput = { taskId: string; createdAt: string; output: unknown }
 export type AgentDraftSummary = { id: string; taskId: string; createdAt: string; output: unknown }
 
+/** DEC-082. What `listEvents` returns — the full append-only record `appendEvent` already wrote, read back for the first time by anything other than a test. */
+export type DomainEventRecord = { id: string; aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }
+
 export type HorusStore = {
   appendRawSnapshot: (input: RawSnapshotInput) => { id: string; path: string; payloadHash: string }
   appendEvent: (input: { aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }) => string
@@ -46,10 +49,25 @@ export type HorusStore = {
    * (DEC-059), which enforces its own read-only guarantee independently.
    */
   listRawSnapshots: (limit?: number) => readonly RawSnapshotSummary[]
+  /**
+   * DEC-077. The read side of DEC-020's caching rule for structured requests:
+   * scans this source's snapshots, most recent first, and returns the first
+   * one whose stored `request` object satisfies `matches`, payload included.
+   * Returns `null` rather than throwing when nothing matches — an empty
+   * cache is a normal, expected state, not an error.
+   */
+  findLatestRawSnapshot: (input: { source: string; matches: (request: unknown) => boolean }) => { id: string; retrievedAt: string; payload: unknown } | null
   /** DEC-067. Persists an already-validated analyst output. See `AgentDraftInput`. */
   saveAgentDraft: (input: AgentDraftInput) => { id: string }
   /** Most recent first. */
   listAgentDrafts: (limit?: number) => readonly AgentDraftSummary[]
+  /**
+   * DEC-082. Read-only, oldest first (a tracker reads as a timeline).
+   * `aggregateTypes`, when given, restricts to those types only — the
+   * tracker only ever wants `demonstration`/`outreach`/`follow_up`, not
+   * every `workflow_session` event this table also holds.
+   */
+  listEvents: (aggregateTypes?: readonly string[]) => readonly DomainEventRecord[]
   close: () => void
 }
 
@@ -238,6 +256,23 @@ export function createHorusStore(dataDirectory: string): HorusStore {
       const rows = listSnapshots.all(limit) as { id: string; source: string; retrieved_at: string }[]
       return rows.map((row) => ({ id: row.id, source: row.source, retrievedAt: row.retrieved_at }))
     },
+    findLatestRawSnapshot(input) {
+      const rows = database
+        .prepare('SELECT id, request_json, retrieved_at, storage_path FROM raw_snapshots WHERE source = ? ORDER BY retrieved_at DESC')
+        .all(input.source) as { id: string; request_json: string; retrieved_at: string; storage_path: string }[]
+      for (const row of rows) {
+        let request: unknown
+        try {
+          request = JSON.parse(row.request_json)
+        } catch {
+          continue
+        }
+        if (!input.matches(request)) continue
+        const payload = JSON.parse(fs.readFileSync(row.storage_path, 'utf8'))
+        return { id: row.id, retrievedAt: row.retrieved_at, payload }
+      }
+      return null
+    },
     saveAgentDraft(input) {
       const id = `draft_${crypto.randomUUID()}`
       insertDraft.run({ id, taskId: input.taskId, outputJson: stablePayload(input.output), createdAt: input.createdAt })
@@ -246,6 +281,23 @@ export function createHorusStore(dataDirectory: string): HorusStore {
     listAgentDrafts(limit = 50) {
       const rows = listDrafts.all(limit) as { id: string; task_id: string; output_json: string; created_at: string }[]
       return rows.map((row) => ({ id: row.id, taskId: row.task_id, output: JSON.parse(row.output_json), createdAt: row.created_at }))
+    },
+    listEvents(aggregateTypes) {
+      const rows = (
+        aggregateTypes && aggregateTypes.length > 0
+          ? database
+              .prepare(`SELECT id, aggregate_type, aggregate_id, event_type, payload_json, occurred_at FROM domain_events WHERE aggregate_type IN (${aggregateTypes.map(() => '?').join(',')}) ORDER BY occurred_at ASC`)
+              .all(...aggregateTypes)
+          : database.prepare('SELECT id, aggregate_type, aggregate_id, event_type, payload_json, occurred_at FROM domain_events ORDER BY occurred_at ASC').all()
+      ) as { id: string; aggregate_type: string; aggregate_id: string; event_type: string; payload_json: string; occurred_at: string }[]
+      return rows.map((row) => ({
+        id: row.id,
+        aggregateType: row.aggregate_type,
+        aggregateId: row.aggregate_id,
+        eventType: row.event_type,
+        payload: JSON.parse(row.payload_json),
+        occurredAt: row.occurred_at,
+      }))
     },
     getFoundationStatus() {
       const rawSnapshotCount = (database.prepare('SELECT COUNT(*) AS count FROM raw_snapshots').get() as { count: number }).count

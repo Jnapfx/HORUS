@@ -127,6 +127,68 @@ describe('local evidence store', () => {
     store.close()
   })
 
+  it('lists domain events oldest first, optionally filtered by aggregate type (DEC-082)', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+
+    store.appendEvent({ aggregateType: 'demonstration', aggregateId: 'c1', eventType: 'demonstration.published', payload: { url: 'https://x.pages.dev' }, occurredAt: '2026-08-08T10:00:00.000Z' })
+    store.appendEvent({ aggregateType: 'workflow_session', aggregateId: 'w1', eventType: 'workflow.snapshot_saved', payload: {}, occurredAt: '2026-08-08T09:00:00.000Z' })
+    store.appendEvent({ aggregateType: 'outreach', aggregateId: 'c1', eventType: 'outreach.gmail_handoff_opened', payload: { to: 'owner@example.com' }, occurredAt: '2026-08-08T10:05:00.000Z' })
+
+    const all = store.listEvents()
+    expect(all.map((e) => e.eventType)).toEqual(['workflow.snapshot_saved', 'demonstration.published', 'outreach.gmail_handoff_opened'])
+
+    const filtered = store.listEvents(['demonstration', 'outreach'])
+    expect(filtered).toHaveLength(2)
+    expect(filtered.every((e) => e.aggregateType !== 'workflow_session')).toBe(true)
+    expect(filtered[0]).toMatchObject({ aggregateId: 'c1', eventType: 'demonstration.published', payload: { url: 'https://x.pages.dev' } })
+    store.close()
+  })
+
+  it('finds the most recent matching snapshot by source and a predicate over its stored request (DEC-077)', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+
+    store.appendRawSnapshot({
+      source: 'serpapi.google_maps',
+      request: { category: 'plumber', city: 'Fairfield' },
+      retrievedAt: '2026-08-01T00:00:00.000Z',
+      payload: { local_results: [{ title: 'Old Plumbing Search' }] },
+    })
+    const newer = store.appendRawSnapshot({
+      source: 'serpapi.google_maps',
+      request: { category: 'plumber', city: 'Fairfield' },
+      retrievedAt: '2026-08-07T00:00:00.000Z',
+      payload: { local_results: [{ title: 'Newer Plumbing Search' }] },
+    })
+    store.appendRawSnapshot({
+      source: 'serpapi.google_maps',
+      request: { category: 'landscaping', city: 'Fairfield' },
+      retrievedAt: '2026-08-08T00:00:00.000Z',
+      payload: { local_results: [{ title: 'Should not match' }] },
+    })
+
+    const found = store.findLatestRawSnapshot({
+      source: 'serpapi.google_maps',
+      matches: (request) => (request as { category?: string }).category === 'plumber',
+    })
+
+    expect(found).toMatchObject({ id: newer.id, retrievedAt: '2026-08-07T00:00:00.000Z' })
+    expect(found?.payload).toMatchObject({ local_results: [{ title: 'Newer Plumbing Search' }] })
+    store.close()
+  })
+
+  it('returns null from findLatestRawSnapshot rather than throwing when nothing matches', () => {
+    const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
+    temporaryDirectories.push(dataDirectory)
+    const store = createHorusStore(dataDirectory)
+
+    expect(store.findLatestRawSnapshot({ source: 'serpapi.google_maps', matches: () => true })).toBeNull()
+    store.close()
+  })
+
   it('resumes a workflow snapshot while retaining its append-only history', () => {
     const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'horus-store-'))
     temporaryDirectories.push(dataDirectory)

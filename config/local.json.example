@@ -7,11 +7,13 @@
   },
 
   "home_base": {
-    "_comment": "Origin for all proximity measurement (DEC-016). Required before any search can be ranked.",
+    "_comment": "Origin for all proximity measurement (DEC-016). Required before any search can be ranked. latitude/longitude are optional (DEC-074) — proximity is simply unavailable until both are set once; find them by right-clicking your address on Google Maps.",
     "address": "",
     "city": "",
     "state": "",
-    "postal_code": ""
+    "postal_code": "",
+    "latitude": null,
+    "longitude": null
   },
 
   "search_defaults": {

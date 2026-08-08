@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildCloudflareDashboardUploadPlan } from '../electron/integrations/cloudflare'
 import { listIntegrationContracts } from '../electron/integrations/contracts'
-import { buildPageSpeedMobilePlan } from '../electron/integrations/pagespeed'
-import { CREDENTIAL_PLACEHOLDER, buildSerpApiDiscoveryPlan, executeSerpApiDiscovery } from '../electron/integrations/serpapi'
+import { PAGESPEED_CREDENTIAL_PLACEHOLDER, buildPageSpeedMobilePlan, executePageSpeedMobile } from '../electron/integrations/pagespeed'
+import { CREDENTIAL_PLACEHOLDER, buildSerpApiDiscoveryPlan, buildSerpApiReviewsPlan, executeSerpApiDiscovery, executeSerpApiReviews } from '../electron/integrations/serpapi'
 
 describe('non-production integration contracts', () => {
   it('plans SerpApi and PageSpeed requests without embedding credentials', () => {
@@ -55,6 +55,44 @@ describe('non-production integration contracts', () => {
     // The whole result is what reaches the evidence store, not just the payload.
     expect(JSON.stringify(result)).not.toContain('test-key')
     expect(result.requestUrl).toContain(`api_key=${CREDENTIAL_PLACEHOLDER}`)
+  })
+
+  it('plans a paginated reviews request, sorted newest first, without embedding a credential', () => {
+    const firstPage = buildSerpApiReviewsPlan({ dataId: 'abc123' })
+    expect(firstPage.query).toMatchObject({ engine: 'google_maps_reviews', data_id: 'abc123', sort_by: 'newestFirst' })
+    expect(firstPage.query).not.toHaveProperty('next_page_token')
+
+    const secondPage = buildSerpApiReviewsPlan({ dataId: 'abc123', pageToken: 'token-2' })
+    expect(secondPage.query.next_page_token).toBe('token-2')
+    expect(JSON.stringify([firstPage, secondPage])).not.toContain('api_key=')
+  })
+
+  it('executes a reviews request with a main-process key and keeps it out of the returned result', async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = new URL(input.toString())
+      expect(url.searchParams.get('api_key')).toBe('test-key')
+      return new Response(JSON.stringify({ reviews: [{ iso_date: '2026-08-01T00:00:00Z', rating: 5 }] }), { status: 200 })
+    }
+
+    const result = await executeSerpApiReviews({ dataId: 'abc123', apiKey: 'test-key', fetchImpl, now: () => new Date('2026-08-07T12:00:00.000Z') })
+
+    expect(result.payload).toEqual({ reviews: [{ iso_date: '2026-08-01T00:00:00Z', rating: 5 }] })
+    expect(JSON.stringify(result)).not.toContain('test-key')
+    expect(result.requestUrl).toContain(`api_key=${CREDENTIAL_PLACEHOLDER}`)
+  })
+
+  it('executes a PageSpeed request with a main-process key and keeps it out of the returned result', async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = new URL(input.toString())
+      expect(url.searchParams.get('key')).toBe('ps-test-key')
+      expect(url.searchParams.get('strategy')).toBe('mobile')
+      return new Response(JSON.stringify({ lighthouseResult: { audits: { interactive: { numericValue: 5000 } } } }), { status: 200 })
+    }
+
+    const result = await executePageSpeedMobile({ url: 'https://example.invalid/', apiKey: 'ps-test-key', fetchImpl, now: () => new Date('2026-08-07T12:00:00.000Z') })
+
+    expect(JSON.stringify(result)).not.toContain('ps-test-key')
+    expect(result.requestUrl).toContain(`key=${PAGESPEED_CREDENTIAL_PLACEHOLDER}`)
   })
 
   it('records that a credential was used without recording its value', async () => {
