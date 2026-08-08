@@ -182,7 +182,26 @@ app.whenReady().then(() => {
   ipcMain.handle('discovery:capture-screenshot', async (_event, input: { url: string }) =>
     captureWebsiteScreenshot(input.url, {
       createWindow: () => {
-        const win = new BrowserWindow({ show: false, width: 1280, height: 800, webPreferences: { offscreen: true } })
+        // DEC-088. This is the only window in HORUS that loads a third party's
+        // page, and unlike `inspect_public_website_readonly` — which fetches
+        // inert text — it renders and executes it. Electron 43's defaults
+        // already give all three of these, so this is not a fix for a live
+        // hole; it is stating them at the one call site where they matter most,
+        // rather than inheriting them. The main window above declares the same
+        // settings explicitly; this one did not, which is exactly backwards.
+        // No preload is attached, so `sandbox: true` stays in force.
+        const win = new BrowserWindow({
+          show: false,
+          width: 1280,
+          height: 800,
+          webPreferences: {
+            offscreen: true,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webSecurity: true,
+          },
+        })
         return {
           loadURL: (url) => win.loadURL(url),
           capturePage: () => win.webContents.capturePage(),

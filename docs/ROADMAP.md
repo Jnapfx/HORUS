@@ -116,7 +116,7 @@ Two items need the operator's judgment rather than more work:
 
 - [ ] Replay Finescape and Sons and SEASONS EATS in shadow mode and compare the agent output with retained evidence and historical operator decisions.
 - [ ] Add concept and outreach composition only after the analyst replay passes its evidence and missing-data checks.
-- [ ] Review security, prompt-injection resistance, privacy, subscription limits, product terms, and the handling of third-party business data.
+- [ ] Review security, prompt-injection resistance, privacy, subscription limits, product terms, and the handling of third-party business data. *Partly done — DEC-088 and [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) cover the agent boundary, the two network-reaching tools, prompt injection, and privacy. Subscription limits, product terms, a dependency audit, the unexercised publish/Gmail paths, and third-party data retention remain open, so the box stays unticked.*
 - [ ] Confirm minimum performance, repeatability, SerpApi consumption, and model-runtime availability per prospect.
 - [ ] Prepare and test recovery procedures for interrupted agent runs and removal/recovery procedures for published demonstrations.
 - [ ] Run no additional real prospect, publication, or outreach until separately authorized after shadow-mode validation.
