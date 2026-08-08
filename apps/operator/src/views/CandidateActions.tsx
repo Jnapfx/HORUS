@@ -2,23 +2,38 @@ import { useState } from 'react'
 import { buildReputationScore, type ReputationScore } from '../domain/reputation-scoring'
 import { summarizeReviewHistory } from '../domain/review-history'
 import { buildWebOpportunityAudit, type WebOpportunityAudit } from '../domain/web-opportunity-audit'
+import {
+  emptyJudgment,
+  findJudgmentProblems,
+  isJudgmentComplete,
+  JUDGMENT_GATES,
+  resolveJudgment,
+  type OperatorJudgmentDraft,
+} from '../domain/operator-judgment'
 import type { CandidateSummary, ReviewHistoryResult, WebOpportunityMeasurementResult } from './types'
 
 /**
- * DEC-071. Per candidate: retrieves real review history (a further real
- * SerpApi cost, up to 3 pages) and runs the real `reputation-scoring-v1`
- * against it. G4–G6 are deliberately left `insufficient_data` here — this
- * component has no way to assess a complaint pattern, operational status, or
- * listing identity, and per DEC-008 those require operator judgment, not an
- * invented default. That is why `qualified` can come back `false` even when
- * every computable factor looks strong: the operator, not this screen, is
- * the missing gate.
+ * DEC-071, extended by DEC-091. Per candidate: retrieves real review history
+ * (a further real SerpApi cost, up to 3 pages) and runs the real
+ * `reputation-scoring-v1` against it.
+ *
+ * G4–G6 require operator judgment and cannot be computed (charter 9.5,
+ * DEC-008). DEC-071 left them permanently `insufficient_data` with no way to
+ * answer them, which made `qualified` unreachable for every candidate and, in
+ * turn, left the shortlist permanently empty and everything downstream of it
+ * unreachable. DEC-091 adds the three questions and recomputes the score from
+ * the already-retrieved history — no further retrieval, no further credit —
+ * so the operator, who is the missing gate, can now actually be it.
  */
 export function CandidateScoreAction({ candidate, onScored }: { candidate: CandidateSummary; onScored?: (score: ReputationScore) => void }) {
   const [running, setRunning] = useState(false)
   const [historyResult, setHistoryResult] = useState<ReviewHistoryResult | null>(null)
   const [score, setScore] = useState<ReputationScore | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Retained so answering a judgment gate rescores from evidence already paid
+  // for, rather than spending another SerpApi credit (DEC-020, DEC-032).
+  const [retrieved, setRetrieved] = useState<{ summary: ReturnType<typeof summarizeReviewHistory>; retrievedAt: string } | null>(null)
+  const [judgment, setJudgment] = useState<OperatorJudgmentDraft>(emptyJudgment)
 
   const run = () => {
     if (!candidate.dataId) return
@@ -35,33 +50,65 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
           retrievedAt: outcome.retrievedAt,
           paginationExhausted: outcome.paginationExhausted,
         })
-        const notYetAssessed = { status: 'insufficient_data' as const, evidence: 'Not yet reviewed by the operator.' }
-        const computed = buildReputationScore({
-          listingId: candidate.dataId!,
-          retrievedAt: outcome.retrievedAt,
-          rating: candidate.rating === null ? { status: 'unmeasured', reason: 'No rating on the discovery listing.' } : { status: 'measured', value: candidate.rating },
-          reviewCount: candidate.reviewCount === null ? { status: 'unmeasured', reason: 'No review count on the discovery listing.' } : { status: 'measured', value: candidate.reviewCount },
-          recentActivity: {
-            reviewsLast90Days: { status: 'measured', value: summary.reviewsLast90Days },
-            reviewsLast365Days: { status: 'measured', value: summary.reviewsLast365Days },
-            daysSinceLatestReview: summary.daysSinceLatestReview === null
-              ? { status: 'unmeasured', reason: 'No reviews were retrieved.' }
-              : { status: 'measured', value: summary.daysSinceLatestReview },
-          },
-          recentConsistency: summary.recentConsistency
-            ? { status: 'measured', value: summary.recentConsistency }
-            : { status: 'unmeasured', reason: 'Fewer than 5 trailing-year reviews were retrieved.' },
-          longevity: { status: 'unmeasured', reason: 'Full-history retrieval was not performed (DEC-018 cost discipline).' },
-          complaintPattern: notYetAssessed,
-          operationalStatus: notYetAssessed,
-          listingIdentity: notYetAssessed,
-          market: { status: 'within_target', evidence: 'Discovered via a search already scoped to the target city; not independently re-verified.' },
-        })
+        setRetrieved({ summary, retrievedAt: outcome.retrievedAt })
+        const computed = scoreWith(summary, outcome.retrievedAt, judgment)
         setScore(computed)
         onScored?.(computed)
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'The review-history request was rejected.'))
       .finally(() => setRunning(false))
+  }
+
+  /**
+   * DEC-091. The one place the operator's recorded judgment reaches the
+   * model. `resolveJudgment` throws on a verdict without a rationale rather
+   * than downgrading it, so a half-finished judgment surfaces as an error
+   * instead of a plausible-looking score.
+   */
+  function scoreWith(
+    summary: ReturnType<typeof summarizeReviewHistory>,
+    retrievedAt: string,
+    draft: OperatorJudgmentDraft,
+  ): ReputationScore {
+    const assessed = resolveJudgment(draft)
+    return buildReputationScore({
+      listingId: candidate.dataId!,
+      retrievedAt,
+      rating: candidate.rating === null ? { status: 'unmeasured', reason: 'No rating on the discovery listing.' } : { status: 'measured', value: candidate.rating },
+      reviewCount: candidate.reviewCount === null ? { status: 'unmeasured', reason: 'No review count on the discovery listing.' } : { status: 'measured', value: candidate.reviewCount },
+      recentActivity: {
+        reviewsLast90Days: { status: 'measured', value: summary.reviewsLast90Days },
+        reviewsLast365Days: { status: 'measured', value: summary.reviewsLast365Days },
+        daysSinceLatestReview: summary.daysSinceLatestReview === null
+          ? { status: 'unmeasured', reason: 'No reviews were retrieved.' }
+          : { status: 'measured', value: summary.daysSinceLatestReview },
+      },
+      recentConsistency: summary.recentConsistency
+        ? { status: 'measured', value: summary.recentConsistency }
+        : { status: 'unmeasured', reason: 'Fewer than 5 trailing-year reviews were retrieved.' },
+      longevity: { status: 'unmeasured', reason: 'Full-history retrieval was not performed (DEC-018 cost discipline).' },
+      complaintPattern: assessed.complaintPattern,
+      operationalStatus: assessed.operationalStatus,
+      listingIdentity: assessed.listingIdentity,
+      market: { status: 'within_target', evidence: 'Discovered via a search already scoped to the target city; not independently re-verified.' },
+    })
+  }
+
+  /** Rescores against retained evidence. No retrieval, no credit. */
+  const applyJudgment = (next: OperatorJudgmentDraft) => {
+    setJudgment(next)
+    if (!retrieved) return
+    try {
+      const computed = scoreWith(retrieved.summary, retrieved.retrievedAt, next)
+      setScore(computed)
+      onScored?.(computed)
+      setError(null)
+    } catch (problem) {
+      // An incomplete judgment must not leave a stale score standing as if it
+      // were current — clear it and say why.
+      setScore(null)
+      setError(problem instanceof Error ? problem.message : 'The operator judgment was rejected.')
+    }
   }
 
   return (
@@ -72,6 +119,57 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
       {!candidate.dataId && <p className="notice">No data_id on this listing; review history cannot be retrieved.</p>}
       {error && <div className="error" role="alert"><strong>Rejected.</strong><p>{error}</p></div>}
       {historyResult?.status === 'failed' && <div className="error" role="alert"><strong>Retrieval failed: {historyResult.reason}</strong><p>{historyResult.detail}</p></div>}
+      {retrieved && (
+        <div className="gate-zone">
+          <h4>Operator judgment — charter 9.5 gates G4, G5, G6</h4>
+          <p className="notice">
+            These three cannot be computed from evidence; they are yours to decide (DEC-008). Until all three are
+            answered, this candidate cannot qualify, cannot be ranked on the shortlist, and cannot be selected as a
+            prospect. Leaving one unanswered is a valid, honest state — it just does not open the gate. Answering one
+            requires saying what you saw, and rescoring costs nothing: it reuses the review history already retrieved.
+          </p>
+          {JUDGMENT_GATES.map((gate) => {
+            const entry = judgment[gate.field]
+            return (
+              <div key={gate.id} className="judgment-gate">
+                <label>
+                  {gate.id} — {gate.question}
+                  <select
+                    value={entry.verdict}
+                    onChange={(event) =>
+                      applyJudgment({ ...judgment, [gate.field]: { ...entry, verdict: event.target.value } } as OperatorJudgmentDraft)
+                    }
+                  >
+                    {gate.options.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {entry.verdict !== 'insufficient_data' && (
+                  <label>
+                    What did you see that supports this? (required)
+                    <input
+                      value={entry.rationale}
+                      onChange={(event) =>
+                        applyJudgment({ ...judgment, [gate.field]: { ...entry, rationale: event.target.value } } as OperatorJudgmentDraft)
+                      }
+                      placeholder="e.g. read the 20 most recent reviews; no unresolved complaints"
+                    />
+                  </label>
+                )}
+              </div>
+            )
+          })}
+          {findJudgmentProblems(judgment).map((problem) => (
+            <p key={problem.gate} className="control-hint">{problem.problem}</p>
+          ))}
+          {!isJudgmentComplete(judgment) && findJudgmentProblems(judgment).length === 0 && (
+            <p className="control-hint">
+              Not all three gates are answered. This candidate stays unqualified, which is correct — not a failure.
+            </p>
+          )}
+        </div>
+      )}
       {score && (
         <div className="score-breakdown">
           <p>{score.status} · lower bound {score.scoreLowerBound.toFixed(1)}/100 · threshold {score.qualificationThreshold} · <strong>{score.qualified ? 'qualified' : 'not qualified'}</strong></p>
