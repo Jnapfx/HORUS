@@ -4,6 +4,7 @@ import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { assessProximity, type Coordinates } from '../domain/proximity'
 import { buildDemonstrationSite } from '../domain/demonstration'
 import { buildOutreachDraft } from '../domain/outreach'
+import { assessOldest } from '../domain/freshness'
 import type { CandidateSummary } from './types'
 
 /**
@@ -21,14 +22,20 @@ export function ProspectRecord({
   scores,
   audits,
   homeBase,
+  evidenceRetrievedAt,
   onClear,
+  now,
 }: {
   id: string
   candidates: readonly CandidateSummary[]
   scores: Record<string, ReputationScore>
   audits: Record<string, WebOpportunityAudit>
   homeBase: Coordinates | null | undefined
+  /** When the listing evidence behind this prospect was retrieved (DEC-089). */
+  evidenceRetrievedAt: string | null | undefined
   onClear: () => void
+  /** Injected only by tests; freshness is deliberately clock-dependent. */
+  now?: Date
 }) {
   const index = candidates.findIndex((c, i) => (c.dataId ?? `index-${i}`) === id)
   const candidate = candidates[index]
@@ -54,6 +61,20 @@ export function ProspectRecord({
   const score = scores[id]
   const audit = audits[id]
   const proximity = homeBase && candidate.coordinates ? assessProximity(homeBase, candidate.coordinates) : null
+
+  // DEC-089, charter 14/15. The oldest evidence behind this prospect governs
+  // both DEC-004 gates: the listing retrieval, and the review history the
+  // reputation score was built from. Browsing and ranking are unaffected
+  // (DEC-021 allows cached data of any age); this only blocks contact.
+  // `undefined` means the source does not exist yet — no reputation score has
+  // been computed — which is not the same as a source that exists without a
+  // timestamp. Only the latter is `unknown` evidence. Dropping the former
+  // keeps the blocked-reason truthful; if every source is absent the list is
+  // empty and `assessOldest` still blocks, so this is not a loophole.
+  const freshness = assessOldest({
+    retrievedAt: [evidenceRetrievedAt, score?.retrievedAt].filter((value) => value !== undefined),
+    now: now ?? new Date(),
+  })
 
   const captureScreenshot = () => {
     if (!candidate.website) return
@@ -132,6 +153,13 @@ export function ProspectRecord({
       <p>{candidate.address ?? 'No address on the listing'} · {candidate.type ?? 'no category'} · {candidate.website ?? 'no website'} · {candidate.phone ?? 'no phone on the listing'}</p>
       {proximity && <p>{proximity.distanceMiles} mi · {proximity.band} (straight-line, DEC-074)</p>}
 
+      {/* DEC-089. Shown here, before either gate, so the operator learns the
+          evidence is stale while there is still something to do about it —
+          not at the moment they try to publish. */}
+      <p className={freshness.blocksContact ? 'gate' : 'notice'}>
+        <strong>Evidence freshness: {freshness.status}.</strong> {freshness.evidence}
+      </p>
+
       {score ? (
         <>
           <h4>Reputation — {score.status} · lower bound {score.scoreLowerBound.toFixed(1)}/{score.qualificationThreshold} · {score.qualified ? 'qualified' : 'not qualified'}</h4>
@@ -195,12 +223,19 @@ export function ProspectRecord({
             <input type="checkbox" checked={publishApproved} onChange={(event) => setPublishApproved(event.target.checked)} />
             {' '}I approve publishing this demonstration publicly, as shown in the preview above.
           </label>
-          <button onClick={publish} disabled={!publishApproved || publishing}>
+          {freshness.blocksContact && (
+            <p className="gate" role="alert">
+              <strong>Publication blocked — evidence is not fresh.</strong> {freshness.evidence}
+            </p>
+          )}
+          <button onClick={publish} disabled={!publishApproved || publishing || freshness.blocksContact}>
             {publishing ? 'Publishing…' : 'Publish now (real deploy)'}
           </button>
           {/* DEC-083 rule 2: a dimmed control reads as absent rather than blocked,
               so the reason it is disabled is stated in words, not left to styling. */}
-          {!publishApproved && <p className="control-hint">Blocked: record the approval above before this can be used.</p>}
+          {freshness.blocksContact
+            ? <p className="control-hint">Blocked: refresh this business's public data before publishing (charter 14, {freshness.maxAgeDays}-day limit).</p>
+            : !publishApproved && <p className="control-hint">Blocked: record the approval above before this can be used.</p>}
           {publishResult?.status === 'published' && (
             <p className="success">
               Published to project {publishResult.projectName} at {publishResult.publishedAt}.
@@ -249,7 +284,12 @@ export function ProspectRecord({
             <input type="checkbox" checked={outreachApproved} onChange={(event) => setOutreachApproved(event.target.checked)} />
             {' '}I approve sending this exact message, as written above. HORUS will only open a Gmail compose window — it cannot send.
           </label>
-          <button onClick={openGmailHandoff} disabled={!outreachApproved || openingHandoff || !outreachDraft.to}>
+          {freshness.blocksContact && (
+            <p className="gate" role="alert">
+              <strong>Outreach blocked — evidence is not fresh.</strong> {freshness.evidence}
+            </p>
+          )}
+          <button onClick={openGmailHandoff} disabled={!outreachApproved || openingHandoff || !outreachDraft.to || freshness.blocksContact}>
             {openingHandoff ? 'Opening…' : 'Open Gmail compose (real, opens your browser)'}
           </button>
           {(!outreachApproved || !outreachDraft.to) && (
