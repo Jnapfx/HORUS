@@ -49,6 +49,11 @@ export function ProspectRecord({
   const [publishResult, setPublishResult] = useState<
     { status: 'published'; url: string | null; projectName: string; publishedAt: string; deployOutput: string } | { status: 'failed'; reason: string; detail: string } | null
   >(null)
+  const [removeConfirmation, setRemoveConfirmation] = useState('')
+  const [removing, setRemoving] = useState(false)
+  const [removeResult, setRemoveResult] = useState<
+    { status: 'removed'; projectName: string; removedAt: string; output: string } | { status: 'failed'; reason: string; detail: string } | null
+  >(null)
   const [outreachDraft, setOutreachDraft] = useState<{ to: string; subject: string; body: string } | null>(null)
   const [outreachApproved, setOutreachApproved] = useState(false)
   const [openingHandoff, setOpeningHandoff] = useState(false)
@@ -118,6 +123,20 @@ export function ProspectRecord({
         }
       })
       .finally(() => setPublishing(false))
+  }
+
+  // DEC-090. Charter 15's removal path. Destructive and outward-facing: it
+  // deletes the Cloudflare Pages project and every deployment under it, so the
+  // public URL stops resolving. Guarded by typing the project name rather than
+  // a single click, because a misclick here is not recoverable from the app.
+  const removeDemonstration = () => {
+    if (publishResult?.status !== 'published') return
+    if (removeConfirmation.trim() !== publishResult.projectName) return
+    setRemoving(true)
+    window.horus?.publish
+      .removeDemonstration({ projectName: publishResult.projectName, dataId: candidate.dataId })
+      .then(setRemoveResult)
+      .finally(() => setRemoving(false))
   }
 
   const openGmailHandoff = () => {
@@ -244,6 +263,37 @@ export function ProspectRecord({
           )}
           {publishResult?.status === 'failed' && (
             <div className="error" role="alert"><strong>Publish failed: {publishResult.reason}</strong><p>{publishResult.detail}</p></div>
+          )}
+
+          {publishResult?.status === 'published' && !removeResult && (
+            <div className="gate-zone">
+              <h4>Remove this demonstration — charter 15 removal path</h4>
+              <p className="notice">
+                Deletes the Cloudflare Pages project <strong>{publishResult.projectName}</strong> and every deployment
+                under it. The public URL stops resolving. This cannot be undone from HORUS — republishing means deploying
+                again. Use this when {candidate.name ?? 'the business'} asks for it, or when a concept has served its
+                purpose (DEC-031's 60-day review).
+              </p>
+              <label>Type the project name to confirm
+                <input
+                  value={removeConfirmation}
+                  onChange={(event) => setRemoveConfirmation(event.target.value)}
+                  placeholder={publishResult.projectName}
+                />
+              </label>
+              <button onClick={removeDemonstration} disabled={removing || removeConfirmation.trim() !== publishResult.projectName}>
+                {removing ? 'Removing…' : 'Remove the published demonstration'}
+              </button>
+              {removeConfirmation.trim() !== publishResult.projectName && (
+                <p className="control-hint">Blocked: type <strong>{publishResult.projectName}</strong> exactly to enable this.</p>
+              )}
+            </div>
+          )}
+          {removeResult?.status === 'removed' && (
+            <p className="success">Removed project {removeResult.projectName} at {removeResult.removedAt}. The public URL no longer resolves.</p>
+          )}
+          {removeResult?.status === 'failed' && (
+            <div className="error" role="alert"><strong>Removal failed: {removeResult.reason}</strong><p>{removeResult.detail}</p></div>
           )}
           </div>
         </>
