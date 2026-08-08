@@ -441,7 +441,7 @@ function ProspectRecord({
           </button>
           {screenshot?.status === 'captured' && (
             <>
-              <img src={screenshot.dataUrl} alt={`Screenshot of ${candidate.website}`} className="website-screenshot" style={{ maxWidth: '100%', border: '1px solid #d8dce3' }} />
+              <img src={screenshot.dataUrl} alt={`Screenshot of ${candidate.website}`} className="website-screenshot" />
               <p className="notice">Captured {screenshot.capturedAt}. Shown for the operator's reference only — never stored, never treated as scored evidence.</p>
             </>
           )}
@@ -458,13 +458,18 @@ function ProspectRecord({
           {demoPreview.missingFields.length > 0 && (
             <p className="notice">Rendered with placeholders for: {demoPreview.missingFields.join(', ')}.</p>
           )}
+          {/* The demonstration keeps its own light stylesheet and shares no
+              tokens with this interface — DEC-083 rule 6, DEC-037. */}
           <iframe
             title="Demonstration preview"
             srcDoc={demoPreview.html}
             sandbox=""
-            style={{ width: '100%', height: '480px', border: '1px solid #d8dce3', borderRadius: '8px' }}
+            className="demo-preview-frame"
           />
 
+          {/* DEC-004's first blocking gate. DEC-083 rule 5: this surface carries
+              gravity, never reward — no transition, no celebration on success. */}
+          <div className="gate-zone">
           <h4>Publish this demonstration — real, public, DEC-004 gate</h4>
           <p className="notice">
             Deploys the exact preview above to a real, public Cloudflare Pages URL via your authenticated Wrangler CLI (DEC-080).
@@ -478,6 +483,9 @@ function ProspectRecord({
           <button onClick={publish} disabled={!publishApproved || publishing}>
             {publishing ? 'Publishing…' : 'Publish now (real deploy)'}
           </button>
+          {/* DEC-083 rule 2: a dimmed control reads as absent rather than blocked,
+              so the reason it is disabled is stated in words, not left to styling. */}
+          {!publishApproved && <p className="control-hint">Blocked: record the approval above before this can be used.</p>}
           {publishResult?.status === 'published' && (
             <p className="success">
               Published to project {publishResult.projectName} at {publishResult.publishedAt}.
@@ -487,6 +495,7 @@ function ProspectRecord({
           {publishResult?.status === 'failed' && (
             <div className="error" role="alert"><strong>Publish failed: {publishResult.reason}</strong><p>{publishResult.detail}</p></div>
           )}
+          </div>
         </>
       )}
 
@@ -518,6 +527,9 @@ function ProspectRecord({
               style={{ width: '100%', fontFamily: 'inherit' }}
             />
           </label>
+          {/* DEC-004's second blocking gate. Same treatment as the publish gate
+              above, for the same reason (DEC-083 rule 5). */}
+          <div className="gate-zone">
           <label className="confirm-spend">
             <input type="checkbox" checked={outreachApproved} onChange={(event) => setOutreachApproved(event.target.checked)} />
             {' '}I approve sending this exact message, as written above. HORUS will only open a Gmail compose window — it cannot send.
@@ -525,6 +537,13 @@ function ProspectRecord({
           <button onClick={openGmailHandoff} disabled={!outreachApproved || openingHandoff || !outreachDraft.to}>
             {openingHandoff ? 'Opening…' : 'Open Gmail compose (real, opens your browser)'}
           </button>
+          {(!outreachApproved || !outreachDraft.to) && (
+            <p className="control-hint">
+              Blocked: {!outreachDraft.to ? 'enter a recipient email above' : ''}
+              {!outreachDraft.to && !outreachApproved ? ', and ' : ''}
+              {!outreachApproved ? 'record the approval above' : ''}.
+            </p>
+          )}
           {handoffResult?.status === 'opened' && (
             <>
               <p className="success">Gmail compose opened at {handoffResult.occurredAt}. Review it in your browser and send it yourself — HORUS has no way to do that for you.</p>
@@ -552,6 +571,7 @@ function ProspectRecord({
             </>
           )}
           {handoffResult?.status === 'failed' && <p className="notice">Could not open Gmail compose: {handoffResult.reason}</p>}
+          </div>
         </>
       )}
 
@@ -594,7 +614,7 @@ function RealTrackerPanel() {
       <button className="secondary" onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button>
       {entries && entries.length === 0 && <p className="notice">No prospect has been published, contacted, or scheduled yet.</p>}
       {entries && entries.length > 0 && (
-        <ul className="evidence-list">
+        <ul className="tracker-list">
           {entries.map((entry) => (
             <li key={entry.id}>
               <strong>{entry.businessName ?? entry.id}</strong>

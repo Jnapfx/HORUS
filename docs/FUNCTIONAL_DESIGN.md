@@ -232,6 +232,8 @@ The template is a responsive one-page site by default. It may add a small number
 
 ### 8.2 Approved visual direction
 
+> **Superseded in part, 2026-08-08 (DEC-083).** The operator-interface bullet below records the Phase 2 baseline as approved on 2026-08-06 and is retained unedited. Its register — "restrained editorial" — and its implied light luminance were superseded by DEC-083, which adopts a dark neutral instrument-panel register bounded by six explicit rules. Everything else in that bullet still binds: chroma-neutral foundations, dense but scannable panels, a single semantic accent system with the same four meanings, and the exclusion of dashboard theatre, gamified scores, and overly decorative charts. The demonstration, responsive, and accessibility bullets are unchanged.
+
 - **Operator interface:** restrained editorial workbench; dense but scannable evidence panels; neutral base colours; a single semantic accent system for information, caution, blocks, and completed approvals. Avoid dashboard theatre, gamified scores, or overly decorative charts.
 - **Demonstrations:** clean, locally credible, mobile-first service-site composition; generous type scale, prominent verified contact route, high contrast, clear hierarchy, and real business imagery when available. Each demo receives a limited style adaptation from verified cues such as the existing logo or colours; the shared template stays recognizable and safe.
 - **Responsive priorities:** operator interface is optimized for laptop width first; demonstration previews and published pages are mobile-first. Approval requires both desktop and 375px preview review.
@@ -257,6 +259,7 @@ The functional design is ready to hand to Phase 3 only when a reviewer can confi
 | Decision | Approved V1 default | Decision record |
 | --- | --- | --- |
 | HORUS visual identity | Restrained evidence-workbench for the operator; limited adaptive styling for each demonstration. | DEC-036 |
+| HORUS visual register (2026-08-08) | Dark neutral instrument-panel register for the operator interface, under six binding rules; DEC-036's principles and exclusions retained. | DEC-083 |
 | Demonstration template strategy | One common mobile-first template with bounded per-prospect adaptation. | DEC-037 |
 | Accessibility target | Practical WCAG AA-equivalent baseline; Phase 3 defines verification methods. | DEC-038 |
 | Market-boundary control | Administrative city boundary by default; broader-market interpretation only when the operator explicitly confirms it for that run. | DEC-039 |
