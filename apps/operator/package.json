@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "agent:live-check": "npm run build:electron && tsx scripts/run-analyst-live-check.ts",
-    "agent:shadow-replay": "npm run build:electron && tsx scripts/run-shadow-replay.ts"
+    "agent:shadow-replay": "npm run build:electron && tsx scripts/run-shadow-replay.ts",
+    "calibration:reproduce": "tsx scripts/reproduce-calibration.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
