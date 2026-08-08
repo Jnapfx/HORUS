@@ -1,8 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import App from '../src/App'
+import { ProspectRecord } from '../src/views/ProspectRecord'
+import type { CandidateSummary } from '../src/views/types'
 
 /**
  * DEC-038's accessibility baseline, verified rather than asserted in prose.
@@ -15,21 +18,35 @@ import App from '../src/App'
  *
  * Coverage is deliberately layered, and the layers are not equivalent:
  *
- *   - Rendered  — `App` is rendered with `react-dom/server`, so these run
- *     against real output. This reaches the default view only: the search
- *     stage and the three collapsed panel buttons. The deeper surfaces
- *     (`ProspectRecord`, both DEC-004 gates, the evidence panels) are private
- *     to `App.tsx` and unreachable without state, so they are not covered here.
- *   - Static    — regex over `App.tsx` source, which does reach those deeper
- *     surfaces. Weaker than rendering: it checks the markup as written, not the
- *     markup as produced.
+ *   - Rendered  — components rendered with `react-dom/server`, so these run
+ *     against real output. Since DEC-085 exported the view components, this
+ *     reaches `App`'s default view *and* `ProspectRecord`'s default state.
+ *     It still cannot reach either DEC-004 gate: those render only after the
+ *     operator generates a demonstration preview or a draft, which is a state
+ *     transition `renderToStaticMarkup` cannot drive. The gates remain
+ *     static-layer only.
+ *   - Static    — regex over every component source under `src`, which does
+ *     reach the surfaces rendering cannot. Weaker than rendering: it checks the
+ *     markup as written, not the markup as produced, so a property dropped by a
+ *     conditional would pass.
  *   - Stylesheet — the focus rule is a CSS guarantee, not a DOM one.
  *
  * What none of these can check: actual keyboard traversal and actual focus
  * appearance in a running browser. That needs a real browser and remains open.
  */
 
-const source = readFileSync(fileURLToPath(new URL('../src/App.tsx', import.meta.url)), 'utf8')
+/**
+ * The static layer reads every component source, not one file. DEC-085 moved
+ * the view components out of `App.tsx` and these checks failed — correctly, and
+ * for the wrong reason: they were pinned to a path rather than to the markup.
+ * Globbing removes that brittleness and widens coverage at the same time.
+ */
+const sourceDir = fileURLToPath(new URL('../src', import.meta.url))
+const componentFiles = readdirSync(sourceDir, { recursive: true, encoding: 'utf8' })
+  .filter((name) => name.endsWith('.tsx'))
+  .map((name) => join(sourceDir, name))
+const source = componentFiles.map((file) => readFileSync(file, 'utf8')).join('\n')
+
 const css = readFileSync(fileURLToPath(new URL('../src/index.css', import.meta.url)), 'utf8')
 const html = renderToStaticMarkup(<App />)
 
@@ -52,7 +69,7 @@ describe('DEC-038 — semantic heading structure (rendered)', () => {
   })
 })
 
-describe('DEC-038 — text alternatives (static, reaches the whole file)', () => {
+describe('DEC-038 — text alternatives (static, reaches every component source)', () => {
   it('gives every image an alt attribute', () => {
     const images = source.match(/<img\b[^>]*>/gs) ?? []
     expect(images.length, 'no images found — has the screenshot view been removed?').toBeGreaterThan(0)
@@ -70,7 +87,7 @@ describe('DEC-038 — text alternatives (static, reaches the whole file)', () =>
   })
 })
 
-describe('DEC-038 — keyboard-operable controls (static, reaches the whole file)', () => {
+describe('DEC-038 — keyboard-operable controls (static, reaches every component source)', () => {
   it('puts every click handler on a natively focusable element', () => {
     // A `<div onClick>` is unreachable by keyboard. Every interactive element
     // in this application must be a real button, input, or anchor so that it
@@ -116,6 +133,56 @@ describe('DEC-038 — visible focus (stylesheet)', () => {
         expect(block, `outline removed without a replacement ring:\n${block}`).toMatch(/box-shadow/)
       }
     }
+  })
+})
+
+describe('DEC-038 — ProspectRecord default state (rendered, unlocked by DEC-085)', () => {
+  // Reachable only because DEC-085 made this an exported module. Its default
+  // state is the evidence-heavy surface an operator reads before selecting; the
+  // publish and outreach gates below it need an interaction to appear and so
+  // stay outside this layer.
+  const candidate = {
+    dataId: 'test-candidate',
+    name: 'Test Business',
+    address: '1 Example Street',
+    type: 'landscaping',
+    website: 'https://example.com',
+    phone: '+1 555 0100',
+    rating: 4.6,
+    reviewCount: 212,
+    coordinates: null,
+  } as unknown as CandidateSummary
+
+  const record = renderToStaticMarkup(
+    <ProspectRecord
+      id="test-candidate"
+      candidates={[candidate]}
+      scores={{}}
+      audits={{}}
+      homeBase={null}
+      onClear={() => {}}
+    />,
+  )
+
+  it('renders without a score or audit rather than showing a zero', () => {
+    // Hard rule 6 and charter 9.6: absent measurement is not a low value.
+    expect(record).toContain('not yet scored')
+    expect(record).toContain('not yet measured')
+    expect(record).not.toMatch(/\b0\.0\/100\b/)
+  })
+
+  it('never skips a heading level', () => {
+    const levels = [...record.matchAll(/<h([1-6])[^>]*>/g)].map((match) => Number(match[1]))
+    expect(levels.length).toBeGreaterThan(0)
+    for (let i = 1; i < levels.length; i += 1) {
+      expect(levels[i] - levels[i - 1],
+        `heading ${i} jumps from h${levels[i - 1]} to h${levels[i]}`).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('uses real buttons for every action', () => {
+    expect(record).toMatch(/<button/)
+    expect(record).not.toMatch(/<div[^>]*onclick/i)
   })
 })
 
