@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('horus', {
   publish: {
     /** DEC-080. REAL PUBLICATION: deploys to Cloudflare Pages via the operator's authenticated Wrangler CLI. The renderer must obtain explicit DEC-004 approval before ever calling this. */
     demonstration: (input: { html: string; businessName: string; dataId: string | null }) => ipcRenderer.invoke('publish:demonstration', input),
+    /** DEC-090. Charter 15's removal path. Destructive: deletes the Pages project and every deployment under it. */
+    removeDemonstration: (input: { projectName: string; dataId: string | null }) => ipcRenderer.invoke('publish:remove-demonstration', input),
   },
   outreach: {
     /** DEC-081. Opens a Gmail compose window in the operator's default browser via `shell.openExternal` — no Gmail credential, no send capability (DEC-041). Requires explicit DEC-004 approval before calling. */

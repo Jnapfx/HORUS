@@ -111,6 +111,11 @@ declare global {
           | { status: 'published'; url: string | null; projectName: string; publishedAt: string; deployOutput: string }
           | { status: 'failed'; reason: string; detail: string }
         >
+        /** DEC-090. Charter 15's removal path. Destructive and outward-facing: deletes the Pages project and every deployment under it. */
+        removeDemonstration: (input: { projectName: string; dataId: string | null }) => Promise<
+          | { status: 'removed'; projectName: string; removedAt: string; output: string }
+          | { status: 'failed'; reason: string; detail: string }
+        >
       }
       /** DEC-081. The second DEC-004 gate — opens a real Gmail compose window, no send capability. */
       outreach: {

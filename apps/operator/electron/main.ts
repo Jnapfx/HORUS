@@ -13,7 +13,7 @@ import { OperatorConfigMissing, getHomeBaseCoordinates, loadOperatorConfig, requ
 import { runRealDiscoverySearch } from './discovery-ipc.js'
 import { listIntegrationContracts } from './integrations/contracts.js'
 import { createHorusStore } from './persistence.js'
-import { publishDemonstrationSite } from './publish-ipc.js'
+import { publishDemonstrationSite, removeDemonstrationSite } from './publish-ipc.js'
 import { runReviewHistoryRetrieval } from './review-retrieval-ipc.js'
 import { runWebOpportunityMeasurement } from './web-opportunity-ipc.js'
 import { captureWebsiteScreenshot } from './website-screenshot.js'
@@ -239,6 +239,26 @@ app.whenReady().then(() => {
         eventType: 'demonstration.published',
         payload: { url: result.url, projectName: result.projectName, businessName: input.businessName },
         occurredAt: result.publishedAt,
+      })
+    }
+    return result
+  })
+  // DEC-090. Charter 15's removal path — the reverse of the channel above,
+  // and the one thing DEC-080 left missing: a page about a real business
+  // could be put on the public internet with no way to take it down from the
+  // app. Removal is destructive and outward-facing, so the renderer requires
+  // the operator to type the project name before invoking this, the same
+  // shape as the DEC-004 approval checkboxes. Success is recorded as a
+  // durable event so the tracker reflects that the URL is gone.
+  ipcMain.handle('publish:remove-demonstration', async (_event, input: { projectName: string; dataId: string | null }) => {
+    const result = await removeDemonstrationSite({ projectName: input.projectName, spawnImpl: nodeSpawn, cwd: os.tmpdir() })
+    if (result.status === 'removed') {
+      store.appendEvent({
+        aggregateType: 'demonstration',
+        aggregateId: input.dataId ?? input.projectName,
+        eventType: 'demonstration.removed',
+        payload: { projectName: result.projectName },
+        occurredAt: result.removedAt,
       })
     }
     return result

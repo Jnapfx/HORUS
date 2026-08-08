@@ -96,3 +96,57 @@ export async function publishDemonstrationSite(input: {
     await cleanup()
   }
 }
+
+export type RemoveDemonstrationResult =
+  | { status: 'removed'; projectName: string; removedAt: string; output: string }
+  | { status: 'failed'; reason: string; detail: string }
+
+/**
+ * DEC-090. Charter section 15 requires a removal path for a published
+ * demonstration, FUNCTIONAL_DESIGN 6.4 lists "disable/remove an already
+ * published demonstration" as a required action, and the Demonstration state
+ * model has a `removed` state. None of it existed: DEC-080 could put a page
+ * about a real business on the public internet and the application offered no
+ * way to take it down. Phase 5's Finescape concept was retired by the operator
+ * typing Wrangler commands directly, outside the app — the same gap DEC-080
+ * closed for publishing, still open for the reverse.
+ *
+ * `wrangler pages project delete` removes the project and every deployment
+ * under it, which is what "removed" has to mean for a concept site: disabling
+ * one deployment would leave the others reachable.
+ *
+ * `--yes` is passed because the subprocess has no TTY to answer an interactive
+ * confirmation on. **The confirmation this replaces is not skipped — it is
+ * moved into HORUS**, where the operator types the project name to confirm
+ * before this is ever invoked, the same shape as the DEC-004 approval
+ * checkboxes. This module performs no gate check itself, consistent with
+ * DEC-080 and DEC-045: it only knows how to run the command.
+ *
+ * Deliberately not exercised against a live project by the work that added it.
+ */
+export async function removeDemonstrationSite(input: {
+  projectName: string
+  spawnImpl: SpawnImpl
+  /** Injected rather than defaulted here, so this module never touches `os` — same discipline as `prepareSiteDirectory` above. The command does not read it. */
+  cwd: string
+  timeoutMs?: number
+  now?: () => Date
+}): Promise<RemoveDemonstrationResult> {
+  const timeoutMs = input.timeoutMs ?? 60_000
+  const now = input.now ?? (() => new Date())
+
+  if (!input.projectName.trim()) {
+    return { status: 'failed', reason: 'missing_project', detail: 'No project name was supplied.' }
+  }
+
+  const result = await input.spawnImpl('wrangler', ['pages', 'project', 'delete', input.projectName, '--yes'], { cwd: input.cwd, timeoutMs })
+
+  if (result.timedOut) {
+    return { status: 'failed', reason: 'remove_timed_out', detail: `wrangler pages project delete did not complete within ${timeoutMs}ms` }
+  }
+  if (result.code !== 0) {
+    return { status: 'failed', reason: 'remove_failed', detail: result.stderr || result.stdout || `wrangler exited with code ${result.code}` }
+  }
+
+  return { status: 'removed', projectName: input.projectName, removedAt: now().toISOString(), output: result.stdout }
+}
