@@ -33,3 +33,8 @@ desktop.ini
 .idea/
 *.swp
 *~
+
+# DEC-092. Local evidence written by the pipeline validation harness. Real
+# retrieved business data — same reason cache/ is excluded, and it must never
+# be committed.
+apps/operator/.validation-data/
