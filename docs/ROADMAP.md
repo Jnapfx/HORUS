@@ -99,7 +99,7 @@ Evidence: [`checkpoints/2026-08-06_phase-5-first-live-concept.md`](checkpoints/2
 
 **Exit criterion:** met. The V1 success criteria were measured against one real, operator-approved run. A business response is a tracked sales outcome, not a prerequisite for closing this phase.
 
-## Phase 6 — Validation and Hardening
+## Phase 6 — Validation and Hardening · complete and approved
 
 Outcome: V1 is reliable enough for repeated use.
 
@@ -121,6 +121,6 @@ Two items need the operator's judgment rather than more work:
 - [x] Prepare and test recovery procedures for interrupted agent runs and removal/recovery procedures for published demonstrations. (DEC-100 agent recovery; DEC-090 demonstration removal; DEC-096 the 60-day review that triggers it)
 - [ ] Run no additional real prospect, publication, or outreach until separately authorized after shadow-mode validation.
 
-**Exit criterion met, 2026-08-09 — awaiting operator approval.** Evidence: [`checkpoints/2026-08-09_phase-6-validation-and-hardening.md`](checkpoints/2026-08-09_phase-6-validation-and-hardening.md), which audits each part and each of AGENT_ARCHITECTURE §11's ten acceptance criteria individually. That audit found one criterion unmet — "a material edit invalidates the relevant prior approval" — which DEC-101 fixed. Two boxes above stay unticked on purpose: concept and outreach composition were built before the runtime decision existed (a sequencing question recorded on 2026-08-08 and left for the operator), and performance/repeatability is only partly observed.
+**Complete and approved by Javier Napoles, 2026-08-09.** Evidence: [`checkpoints/2026-08-09_phase-6-validation-and-hardening.md`](checkpoints/2026-08-09_phase-6-validation-and-hardening.md), which audits each part and each of AGENT_ARCHITECTURE §11's ten acceptance criteria individually. That audit found one criterion unmet — "a material edit invalidates the relevant prior approval" — which DEC-101 fixed. Two boxes above stay unticked on purpose: concept and outreach composition were built before the runtime decision existed (a sequencing question recorded on 2026-08-08 and left for the operator), and performance/repeatability is only partly observed.
 
 **Exit criterion:** the corrected foundation and shadow-mode agent workflow pass their acceptance checks, Claude unavailability is recoverable without corrupting state, no agent can bypass either approval gate, and a decision is recorded on whether to retain the subscription-backed runtime, change provider/runtime, revise V1, or reconsider the approach.

@@ -29,10 +29,11 @@ These are not preferences. Each is a recorded decision with reasoning behind it.
 | File | Contents |
 | --- | --- |
 | `docs/PROJECT_CHARTER.md` | The full specification, 18 sections. The source of truth. |
-| `docs/DECISIONS.md` | 45 decisions with context, options, and consequences. Read before changing anything structural. |
+| `docs/DECISIONS.md` | 102 decisions with context, options, and consequences. Read before changing anything structural. |
 | `docs/CURRENT_STATE.md` | What is done, what is next, known weaknesses. Update at the end of every working session. |
-| `docs/ROADMAP.md` | Seven phases. Phases 0–5 are complete; Phase 6 is pending. |
-| `docs/AGENT_ARCHITECTURE.md` | Proposed Phase 6 local-agent architecture, safety boundary, shadow-mode sequence, and acceptance criteria. |
+| `docs/ROADMAP.md` | Seven phases, 0 through 6. All complete and approved. |
+| `docs/AGENT_ARCHITECTURE.md` | The local-agent architecture, safety boundary, and acceptance criteria. Evaluated and closed by DEC-099. |
+| `docs/SECURITY_REVIEW.md` | Phase 6 security and prompt-injection review (DEC-088). Finding F4 is open. |
 | `docs/checkpoints/` | Evidence of completed phases. Immutable once written. |
 | `config/local.json` | Operator config. Gitignored. Never read its contents into documentation. |
 | `config/local.json.example` | Structure, no values. Committed. |
@@ -41,19 +42,24 @@ Charter sections worth knowing by number: **9** reputation scoring, **10** web o
 
 ## Current state
 
-Phases 0–5 are complete and approved (2026-08-05–06). **Phase 6 — Validation and Hardening is pending.**
+**Every phase of `ROADMAP.md` — 0 through 6 — is complete and approved.** Phase 6 closed on 2026-08-09; evidence in `docs/checkpoints/2026-08-09_phase-6-validation-and-hardening.md`.
 
-The repository includes an executable Electron/React/TypeScript foundation with SQLite-backed local persistence and automated checks. Calibration retrieved and scored 30 representative businesses. Phase 5 completed one real, approval-gated SEASONS EATS run with a bounded public concept and operator-confirmed manual outreach; HORUS did not send the email.
+Charter §4's loop runs end to end on real data: a real search reached a demonstration preview for the first time on 2026-08-08 (DEC-092), and the deterministic model reproduced a figure recorded live four days earlier to within 0.1. Every reputation number in this repository has been reproduced from retained evidence through the real code (DEC-086, DEC-087). 406 automated tests.
 
-### What Phase 6 is for
+**What remains is not a phase.** HORUS V1 exists to acquire the company's first client, and that means taking a real prospect through to publication and outreach. That crosses both DEC-004 gates, needs the operator's explicit approval per action, and cannot be delegated to an agent or inferred from a general go-ahead.
 
-Phase 6 corrects the foundation findings, validates repeatability and recovery, and evaluates locally orchestrated agents without weakening evidence or approvals. DEC-045 authorizes evaluation of Claude Code authenticated through the operator's existing subscription as the first local runtime; it does not claim the runtime is implemented or permanently suitable.
+### Before any real prospect decision
 
-**No phase authorizes publication or outreach without the two explicit approvals.** Phase 6 begins with shadow-mode replay and does not itself authorize another real prospect, public concept, or outreach.
+**The home base coordinates in `config/local.json` are the Stamford city centroid, not the operator's address.** They were written for pipeline validation and are labelled as such in the file. The 5/15/30-mile bands are the shortlist's first ranking key, so a centroid can put a business in the wrong band — and nothing on screen would show it. Replace them first.
 
-### Suggested next step
+### Known weaknesses
 
-Correct the credential-bearing request URL, historical snapshot, and main-process state-validation findings. Then implement one bounded, queued Claude Code analyst task and replay the retained Finescape and SEASONS EATS cases in shadow mode. See `docs/AGENT_ARCHITECTURE.md`.
+- Three of `web-opportunity-v2`'s five factors, and four of seven obsolete-appearance indicators, are unmeasured. Coverage is stated rather than implied (DEC-098), but this is the dimension that *orders* the shortlist.
+- DEC-018's 3-page review cap means every candidate is `partial_data`; for a business with 314 reviews that is a 9% sample.
+- Search does not paginate to `TARGET_QUALIFIED`/`MAX_EXAMINED` — one request, capped at 20.
+- `SECURITY_REVIEW.md`'s finding F4 is open: hostile review text could route the analyst to an attacker URL. DEC-099 keeps the agent off the critical path and forbids wiring further tools until this is closed or explicitly accepted.
+- FUNCTIONAL_DESIGN §6's six named views do not exist as views.
+- Working prospect state beyond the operator's recorded judgment is in memory only.
 
 ### Numbers most likely to be wrong
 
