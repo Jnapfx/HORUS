@@ -25,16 +25,37 @@ export type ReviewHistoryResult =
     }
   | { status: 'failed'; reason: string; detail: string }
 
-function extractReviews(payload: unknown): readonly { isoDate: string; rating: number }[] {
+/**
+ * DEC-105. The review text is carried through, not dropped.
+ *
+ * Until now this kept only the date and rating — everything the scoring model
+ * needs — and discarded the words. That left charter 9.5's judgment gates
+ * asking the operator whether there is "a pattern of unresolved complaints in
+ * the reviews you read" in an application that had never shown them a review.
+ * Evidence over scores (CLAUDE.md) is the project's own rule, and the one
+ * screen where the operator's own judgement is the input was the screen with
+ * no evidence on it.
+ */
+function extractReviews(payload: unknown): readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[] {
   if (typeof payload !== 'object' || payload === null) return []
   const reviews = (payload as Record<string, unknown>).reviews
   if (!Array.isArray(reviews)) return []
   return reviews
     .map((raw) => {
       const item = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
-      return typeof item.iso_date === 'string' && typeof item.rating === 'number' ? { isoDate: item.iso_date, rating: item.rating } : null
+      if (typeof item.iso_date !== 'string' || typeof item.rating !== 'number') return null
+      const user = typeof item.user === 'object' && item.user !== null ? (item.user as Record<string, unknown>) : {}
+      return {
+        isoDate: item.iso_date,
+        rating: item.rating,
+        text: typeof item.snippet === 'string' && item.snippet.trim() ? item.snippet : null,
+        author: typeof user.name === 'string' ? user.name : null,
+        // Charter 9.5's G4 asks about *unresolved* complaints, so whether the
+        // owner replied is part of the evidence, not decoration.
+        ownerResponded: typeof item.response === 'object' && item.response !== null,
+      }
     })
-    .filter((review): review is { isoDate: string; rating: number } => review !== null)
+    .filter((review): review is { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean } => review !== null)
 }
 
 function extractNextPageToken(payload: unknown): string | null {

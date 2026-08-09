@@ -906,3 +906,66 @@ input[type='checkbox'] {
     padding: var(--space-5) var(--space-4);
   }
 }
+
+/* ------------------------------------------------------ review evidence ---
+ * DEC-105. The reviews, shown beside the judgment gates that ask about them.
+ * Charter 9.5's G4 asks whether there is a pattern of unresolved complaints
+ * "in the reviews you read" — an application that never showed a review was
+ * asking for a judgement it gave the operator no way to form. */
+
+.review-evidence {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface-3);
+}
+
+.review-evidence > summary {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.review-list {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.review-list li {
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2);
+  border-left: 3px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* A low rating is where an unresolved-complaint pattern would show, so it is
+ * marked — but by a rule and a word, never by colour alone (DEC-038). */
+.review-list li.low {
+  border-left-color: var(--accent-caution);
+}
+
+.review-meta {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.review-text {
+  margin: 0;
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.review-text.muted {
+  color: var(--text-muted);
+  font-style: italic;
+}

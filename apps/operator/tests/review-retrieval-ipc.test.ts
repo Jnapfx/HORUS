@@ -26,7 +26,12 @@ describe('runReviewHistoryRetrieval', () => {
 
     expect(result).toMatchObject({ status: 'completed', pagesFetched: 1, paginationExhausted: true })
     if (result.status !== 'completed') throw new Error('unreachable')
-    expect(result.reviews).toEqual([{ isoDate: '2026-08-01T00:00:00Z', rating: 5 }])
+    // DEC-105 carries the review text through, so the operator can actually
+    // read what charter 9.5's gates ask them to judge. The deep-equality
+    // assertion is kept rather than loosened: it is what caught the change.
+    expect(result.reviews).toEqual([
+      { isoDate: '2026-08-01T00:00:00Z', rating: 5, text: null, author: null, ownerResponded: false },
+    ])
     expect(saved).toHaveLength(1)
     expect(JSON.stringify(saved)).not.toContain('real-key')
   })
@@ -89,5 +94,47 @@ describe('runReviewHistoryRetrieval', () => {
       fetchImpl,
     })).rejects.toThrow('data_id is required')
     expect(contacted).toBe(false)
+  })
+})
+
+describe('DEC-105 — the review text reaches the operator', () => {
+  it('carries the words, the author, and whether the owner replied', async () => {
+    // G4 asks about a pattern of *unresolved* complaints, so an owner reply is
+    // part of the evidence rather than decoration.
+    const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+      reviews: [{
+        iso_date: '2026-08-01T00:00:00Z',
+        rating: 2,
+        snippet: 'They never came back to finish the job.',
+        user: { name: 'A. Customer' },
+        response: { snippet: 'Sorry, we will call you.' },
+      }],
+      serpapi_pagination: {},
+    }), { status: 200 })
+
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'x', apiKey: 'real-key', appendRawSnapshot: () => ({ id: 'r', path: 'p', payloadHash: 'h' }), fetchImpl,
+    })
+
+    expect(result.status).toBe('completed')
+    expect(result.status === 'completed' && result.reviews[0]).toEqual({
+      isoDate: '2026-08-01T00:00:00Z',
+      rating: 2,
+      text: 'They never came back to finish the job.',
+      author: 'A. Customer',
+      ownerResponded: true,
+    })
+  })
+
+  it('reports a rating-only review as having no text rather than inventing one', async () => {
+    const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+      reviews: [{ iso_date: '2026-08-01T00:00:00Z', rating: 5 }],
+      serpapi_pagination: {},
+    }), { status: 200 })
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'x', apiKey: 'real-key', appendRawSnapshot: () => ({ id: 'r', path: 'p', payloadHash: 'h' }), fetchImpl,
+    })
+    expect(result.status === 'completed' && result.reviews[0].text).toBeNull()
+    expect(result.status === 'completed' && result.reviews[0].ownerResponded).toBe(false)
   })
 })

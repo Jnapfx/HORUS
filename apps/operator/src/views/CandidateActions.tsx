@@ -35,7 +35,13 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
   const [error, setError] = useState<string | null>(null)
   // Retained so answering a judgment gate rescores from evidence already paid
   // for, rather than spending another SerpApi credit (DEC-020, DEC-032).
-  const [retrieved, setRetrieved] = useState<{ summary: ReturnType<typeof summarizeReviewHistory>; retrievedAt: string } | null>(null)
+  const [retrieved, setRetrieved] = useState<{
+    summary: ReturnType<typeof summarizeReviewHistory>
+    retrievedAt: string
+    reviews: readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[]
+    paginationExhausted: boolean
+    publishedCount: number | null
+  } | null>(null)
   const [judgment, setJudgment] = useState<OperatorJudgmentDraft>(emptyJudgment)
   const [recorded, setRecorded] = useState<{ occurredAt: string; revision: number } | null>(null)
   const [recording, setRecording] = useState(false)
@@ -72,7 +78,13 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
           retrievedAt: outcome.retrievedAt,
           paginationExhausted: outcome.paginationExhausted,
         })
-        setRetrieved({ summary, retrievedAt: outcome.retrievedAt })
+        setRetrieved({
+          summary,
+          retrievedAt: outcome.retrievedAt,
+          reviews: outcome.reviews,
+          paginationExhausted: outcome.paginationExhausted,
+          publishedCount: candidate.reviewCount,
+        })
         const computed = scoreWith(summary, outcome.retrievedAt, judgment)
         setScore(computed)
         onScored?.(computed)
@@ -149,6 +161,43 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
       {retrieved && (
         <div className="gate-zone">
           <h4>Operator judgment — charter 9.5 gates G4, G5, G6</h4>
+
+          {/* DEC-105. The reviews themselves, next to the questions about
+              them. Worst rating first, because G4 asks about a pattern of
+              unresolved complaints and that is where one would be visible.
+              Reading the words is the whole task; the numbers above are
+              already computed. */}
+          <details className="review-evidence" open>
+            <summary>
+              Reviews retrieved ({retrieved.reviews.length}
+              {retrieved.publishedCount !== null ? ` of ${retrieved.publishedCount} published` : ''})
+              {' · '}worst rating first
+            </summary>
+            {!retrieved.paginationExhausted && (
+              <p className="notice">
+                This is a sample, not the whole history — retrieval stopped at DEC-018's page cap. Reviews you cannot
+                see here may say something different, so anything you conclude from silence is not evidence
+                (charter 9.6).
+              </p>
+            )}
+            <ul className="review-list">
+              {[...retrieved.reviews]
+                .sort((a, b) => a.rating - b.rating || b.isoDate.localeCompare(a.isoDate))
+                .map((review, index) => (
+                  <li key={`${review.isoDate}-${index}`} className={review.rating <= 3 ? 'low' : undefined}>
+                    <p className="review-meta">
+                      {'★'.repeat(review.rating)}{'·'.repeat(5 - review.rating)} {review.rating}/5
+                      {' · '}{review.isoDate.slice(0, 10)}
+                      {review.author ? ` · ${review.author}` : ''}
+                      {review.ownerResponded ? ' · owner replied' : ''}
+                    </p>
+                    {review.text
+                      ? <p className="review-text">{review.text}</p>
+                      : <p className="review-text muted">No text — a rating only.</p>}
+                  </li>
+                ))}
+            </ul>
+          </details>
           <p className="notice">
             These three cannot be computed from evidence; they are yours to decide (DEC-008). Until all three are
             answered, this candidate cannot qualify, cannot be ranked on the shortlist, and cannot be selected as a
