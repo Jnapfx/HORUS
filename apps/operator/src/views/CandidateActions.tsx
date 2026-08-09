@@ -108,7 +108,12 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
       recentConsistency: summary.recentConsistency
         ? { status: 'measured', value: summary.recentConsistency }
         : { status: 'unmeasured', reason: 'Fewer than 5 trailing-year reviews were retrieved.' },
-      longevity: { status: 'unmeasured', reason: 'Full-history retrieval was not performed (DEC-018 cost discipline).' },
+      // DEC-104. The retrieved reviews already prove a minimum history span,
+      // and it was being discarded — every candidate lost up to 5 points for
+      // evidence that had been retrieved and paid for.
+      longevity: summary.retrievedHistorySpanYears === null
+        ? { status: 'unmeasured', reason: 'Fewer than two dated reviews were retrieved, so no span can be established.' }
+        : { status: 'measured', value: { historySpanYears: summary.retrievedHistorySpanYears } },
       complaintPattern: assessed.complaintPattern,
       operationalStatus: assessed.operationalStatus,
       listingIdentity: assessed.listingIdentity,
