@@ -3,7 +3,7 @@
 - Date: 2026-08-09
 - Phase: 6 — Validation and Hardening
 - Owner: Javier Napoles, founder and sole operator of HORUS
-- Approval status: **awaiting operator approval.** Every decision it rests on was accepted under delegation during one continuous working session; the phase itself is the operator's to accept.
+- Approval status: **approved by Javier Napoles, 2026-08-09.** Every decision it rests on was accepted under delegation during one continuous working session; the phase itself was the operator's to accept, and was.
 
 ## What this checkpoint claims, and what it does not
 
