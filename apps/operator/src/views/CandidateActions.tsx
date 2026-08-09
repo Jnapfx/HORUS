@@ -3,6 +3,7 @@ import { buildReputationScore, type ReputationScore } from '../domain/reputation
 import { summarizeReviewHistory } from '../domain/review-history'
 import { buildWebOpportunityAudit, type WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { assessMobileResponsiveness } from '../domain/mobile-responsiveness'
+import { scanObsoleteAppearance } from '../domain/obsolete-appearance'
 import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import {
   emptyJudgment,
@@ -248,6 +249,7 @@ export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candi
   const [running, setRunning] = useState(false)
   const [measurement, setMeasurement] = useState<WebOpportunityMeasurementResult | null>(null)
   const [audit, setAudit] = useState<WebOpportunityAudit | null>(null)
+  const [obsoleteCoverage, setObsoleteCoverage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const run = () => {
@@ -261,12 +263,23 @@ export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candi
         setMeasurement(outcome as WebOpportunityMeasurementResult)
         if (outcome.status !== 'completed') return
         const unmeasured = (reason: string) => ({ status: 'unmeasured' as const, reason })
-        const obsoleteAppearance = outcome.servesHttps.status === 'measured'
-          ? {
-              status: 'measured' as const,
-              value: outcome.servesHttps.value ? [] : [{ indicator: 'no-https' as const, evidence: 'The listed URL does not use https.' }],
-            }
-          : unmeasured(outcome.servesHttps.reason)
+        // DEC-098. DEC-072 checked one of seven indicators and handed the
+        // model `measured: []` when the site served https — a completeness
+        // claim it had not earned. The score was always a genuine lower bound
+        // (more indicators can only raise it), but nothing said how much had
+        // been looked at. `scan.coverage` now says it out loud.
+        const scan = scanObsoleteAppearance({
+          signals: {
+            obsoleteTechnologyMarkers: outcome.obsoleteSignals?.obsoleteTechnologyMarkers ?? [],
+            latestCopyrightYear: outcome.obsoleteSignals?.latestCopyrightYear ?? null,
+            servesHttps: outcome.servesHttps.status === 'measured' ? outcome.servesHttps.value : null,
+          },
+          retrievedAt: outcome.retrievedAt,
+        })
+        setObsoleteCoverage(scan.coverage)
+        const obsoleteAppearance = scan.examined.length === 0
+          ? unmeasured('No obsolete-appearance indicator could be checked for this site.')
+          : { status: 'measured' as const, value: scan.indicators }
         const computed = buildWebOpportunityAudit({
           url: candidate.website!,
           retrievedAt: outcome.retrievedAt,
@@ -300,6 +313,7 @@ export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candi
       {measurement?.status === 'completed' && measurement.telLinkFound.status === 'measured' && (
         <p className="notice">Supplementary finding, not scored: a tel: link was {measurement.telLinkFound.value.found ? '' : 'not '}found on the fetched page.</p>
       )}
+      {obsoleteCoverage && <p className="notice">{obsoleteCoverage}</p>}
       {audit && (
         <div className="score-breakdown">
           <p>{audit.status} · lower bound {audit.scoreLowerBound.toFixed(1)}/100</p>
