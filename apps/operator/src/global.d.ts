@@ -81,7 +81,7 @@ declare global {
               snapshotIds: readonly string[]
               pagesFetched: number
               paginationExhausted: boolean
-              reviews: readonly { isoDate: string; rating: number }[]
+              reviews: readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[]
             }
           | { status: 'failed'; reason: string; detail: string }
         >
