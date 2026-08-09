@@ -112,6 +112,7 @@ describe('DEC-093 — the DEC-004 publish gate, clicked', () => {
     render(
       <ProspectRecord
         id="data-1"
+        section="demonstration"
         candidates={[candidate()]}
         scores={{}}
         audits={{}}
@@ -182,6 +183,7 @@ describe('DEC-093 — the demonstration preview carries its safety marks into th
     render(
       <ProspectRecord
         id="data-1"
+        section="demonstration"
         candidates={[candidate()]}
         scores={{}}
         audits={{}}
@@ -293,21 +295,23 @@ describe('DEC-101 — a material edit invalidates the approval it was given unde
       publishedAt: '2026-08-09T12:00:00.000Z', deployOutput: '',
     })
     ;(window as unknown as { horus: unknown }).horus = { publish: { demonstration } }
-    render(
-      <ProspectRecord
-        id="data-1"
-        candidates={[candidate()]}
-        scores={{}}
-        audits={{}}
-        homeBase={null}
-        evidenceRetrievedAt={new Date(NOW3.getTime() - 86_400_000).toISOString()}
-        onClear={() => {}}
-        now={NOW3}
-      />,
-    )
+    const props = {
+      id: 'data-1',
+      candidates: [candidate()],
+      scores: {},
+      audits: {},
+      homeBase: null,
+      evidenceRetrievedAt: new Date(NOW3.getTime() - 86_400_000).toISOString(),
+      onClear: () => {},
+      now: NOW3,
+    }
+    const { rerender } = render(<ProspectRecord {...props} section="demonstration" />)
     fireEvent.click(screen.getByRole('button', { name: /generate demonstration preview/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: /i approve publishing this demonstration/i }))
     fireEvent.click(screen.getByRole('button', { name: /publish now/i }))
+    // Crossing from Demo review to Outreach, as the operator does. The record
+    // stays mounted, so the draft created by publishing survives the move.
+    return { toOutreach: () => rerender(<ProspectRecord {...props} section="outreach" />) }
   }
 
   afterEach(() => { delete (window as unknown as { horus?: unknown }).horus })
@@ -321,7 +325,7 @@ describe('DEC-101 — a material edit invalidates the approval it was given unde
   })
 
   it.each(['subject', 'body'])('editing the %s clears the outreach approval', async (field) => {
-    renderPublished()
+    renderPublished().toOutreach()
     const label = field === 'subject' ? /^subject$/i : /^body$/i
     const input = await screen.findByLabelText(label)
     const approval = await screen.findByRole('checkbox', { name: /i approve sending this exact message/i }) as HTMLInputElement
@@ -334,7 +338,7 @@ describe('DEC-101 — a material edit invalidates the approval it was given unde
   })
 
   it('editing the recipient clears the outreach approval too', async () => {
-    renderPublished()
+    renderPublished().toOutreach()
     const approval = await screen.findByRole('checkbox', { name: /i approve sending this exact message/i }) as HTMLInputElement
     const recipient = await screen.findByLabelText(/recipient email/i)
     fireEvent.click(approval)

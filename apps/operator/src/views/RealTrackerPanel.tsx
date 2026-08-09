@@ -11,7 +11,7 @@ import { buildTrackerView, reviewDemonstrations, type TrackerEvent } from '../do
  * are both collapsed-by-default sections the operator opens explicitly.
  */
 export function RealTrackerPanel() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [entries, setEntries] = useState<readonly ReturnType<typeof buildTrackerView>[number][] | null>(null)
   const [loading, setLoading] = useState(false)
 
