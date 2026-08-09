@@ -9,6 +9,18 @@ export type ReviewHistorySummary = {
   daysSinceLatestReview: number | null
   /** `null` when fewer than 5 trailing-365-day reviews were retrieved (charter 9.2, Factor 4's stated minimum). */
   recentConsistency: { trailingYearMeanRating: number; trailingYearReviewCount: number } | null
+  /**
+   * DEC-104. Years between the oldest and newest retrieved review. `null` when
+   * fewer than two dated reviews came back.
+   *
+   * This is a **lower bound on the business's history, never an estimate of
+   * it**: DEC-018 caps retrieval at three pages, so a business whose oldest
+   * retrieved review is two years old may well be ten years old. It can only
+   * be older than this, never younger — which is precisely what
+   * `scoreLowerBound` means, and why feeding it to Factor 5 is honest where an
+   * extrapolation would not be.
+   */
+  retrievedHistorySpanYears: number | null
 }
 
 function daysBetween(retrievedAt: Date, isoDate: Date) {
@@ -59,10 +71,17 @@ export function summarizeReviewHistory(input: {
     ? { trailingYearMeanRating: within365.reduce((sum, r) => sum + r.rating, 0) / within365.length, trailingYearReviewCount: within365.length }
     : null
 
+  // DEC-104. A lower bound on the history, from the reviews actually in hand.
+  // Two dated reviews are the minimum that can span anything at all.
+  const retrievedHistorySpanYears = withAge.length >= 2 && oldestAgeDays !== null && newestAgeDays !== null
+    ? Math.round(((oldestAgeDays - newestAgeDays) / 365.25) * 100) / 100
+    : null
+
   return {
     reviewsLast90Days: { count: within90.length, sampleCompleteness: ninetyComplete ? 'complete' : 'partial_data' },
     reviewsLast365Days: { count: within365.length, sampleCompleteness: yearComplete ? 'complete' : 'partial_data' },
     daysSinceLatestReview: newestAgeDays === null ? null : Math.round(newestAgeDays * 100) / 100,
     recentConsistency,
+    retrievedHistorySpanYears,
   }
 }
