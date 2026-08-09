@@ -67,6 +67,19 @@ export function ProspectRecord({
   >(null)
   const [outreachDraft, setOutreachDraft] = useState<{ to: string; subject: string; body: string } | null>(null)
   const [outreachApproved, setOutreachApproved] = useState(false)
+
+  /**
+   * DEC-101. AGENT_ARCHITECTURE section 11: "A material edit invalidates the
+   * relevant prior approval." The publish gate already did this — generating
+   * a new preview clears its approval — but the outreach gate did not. The
+   * checkbox reads "I approve sending this exact message, as written above",
+   * and editing the recipient, subject or body after ticking it left that
+   * approval standing over text it was never given for.
+   */
+  const editOutreachDraft = (next: { to: string; subject: string; body: string }) => {
+    setOutreachDraft(next)
+    setOutreachApproved(false)
+  }
   const [openingHandoff, setOpeningHandoff] = useState(false)
   const [handoffResult, setHandoffResult] = useState<{ status: 'opened'; occurredAt: string } | { status: 'failed'; reason: string } | null>(null)
   const [declaredSent, setDeclaredSent] = useState<{ occurredAt: string } | null>(null)
@@ -399,17 +412,17 @@ export function ProspectRecord({
             <input
               type="email"
               value={outreachDraft.to}
-              onChange={(event) => setOutreachDraft({ ...outreachDraft, to: event.target.value })}
+              onChange={(event) => editOutreachDraft({ ...outreachDraft, to: event.target.value })}
               placeholder="owner@example.com"
             />
           </label>
           <label>Subject
-            <input value={outreachDraft.subject} onChange={(event) => setOutreachDraft({ ...outreachDraft, subject: event.target.value })} />
+            <input value={outreachDraft.subject} onChange={(event) => editOutreachDraft({ ...outreachDraft, subject: event.target.value })} />
           </label>
           <label>Body
             <textarea
               value={outreachDraft.body}
-              onChange={(event) => setOutreachDraft({ ...outreachDraft, body: event.target.value })}
+              onChange={(event) => editOutreachDraft({ ...outreachDraft, body: event.target.value })}
               rows={10}
               style={{ width: '100%', fontFamily: 'inherit' }}
             />
