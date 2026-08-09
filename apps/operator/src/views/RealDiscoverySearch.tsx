@@ -113,6 +113,7 @@ export function RealDiscoverySearch() {
             <ProspectRecord
               id={selectedProspectId}
               evidenceRetrievedAt={result.retrievedAt}
+              searchContext={{ category: input.category, city: input.city, maxExamined: input.maxExamined }}
               candidates={result.candidates}
               scores={scores}
               audits={audits}
