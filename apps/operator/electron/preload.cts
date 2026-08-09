@@ -62,6 +62,10 @@ contextBridge.exposeInMainWorld('horus', {
     record: (input: { listingId: string; judgment: unknown }) => ipcRenderer.invoke('judgment:record', input),
     list: () => ipcRenderer.invoke('judgment:list'),
   },
+  /** DEC-107. Rebuilds the last session from retained evidence. Spends nothing. */
+  session: {
+    restore: () => ipcRenderer.invoke('session:restore'),
+  },
   tracker: {
     /** DEC-082. Records exactly what the operator typed — HORUS never schedules or infers a follow-up (DEC-030). */
     scheduleFollowUp: (input: { dataId: string | null; to: string | null; date: string; note: string }) => ipcRenderer.invoke('tracker:schedule-follow-up', input),

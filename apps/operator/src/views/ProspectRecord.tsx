@@ -175,6 +175,13 @@ export function ProspectRecord({
           website: candidate.website,
           rating: candidate.rating,
           reviewCount: candidate.reviewCount,
+          // DEC-106. Verified listing attributes that had been retrieved and
+          // discarded before ever reaching the demonstration.
+          serviceOptions: candidate.serviceOptions,
+          highlights: candidate.highlights,
+          operatingHours: candidate.operatingHours,
+          priceRange: candidate.priceRange,
+          photoUrl: candidate.photoUrl,
         },
         generatedAt: new Date().toISOString(),
       }),

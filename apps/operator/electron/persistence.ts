@@ -50,6 +50,16 @@ export type HorusStore = {
    */
   listRawSnapshots: (limit?: number) => readonly RawSnapshotSummary[]
   /**
+   * DEC-107. Every retained snapshot of one source, with its payload, so the
+   * main process can rebuild a working session from evidence it already holds.
+   *
+   * Distinct from `listRawSnapshots`, which deliberately never exposes payload
+   * content because that is the agent's `read_evidence_snapshot` boundary
+   * (DEC-059). This is main-process only and reaches no agent: it exists so
+   * closing the application stops discarding a search the operator paid for.
+   */
+  listRawSnapshotsBySource: (source: string) => readonly { id: string; retrievedAt: string; request: unknown; payload: unknown }[]
+  /**
    * DEC-077. The read side of DEC-020's caching rule for structured requests:
    * scans this source's snapshots, most recent first, and returns the first
    * one whose stored `request` object satisfies `matches`, payload included.
@@ -252,6 +262,25 @@ export function createHorusStore(dataDirectory: string): HorusStore {
         occurredAt: input.updatedAt,
       })
     },
+    listRawSnapshotsBySource(source: string) {
+      const rows = database
+        .prepare('SELECT id, retrieved_at, request_json, storage_path FROM raw_snapshots WHERE source = ? ORDER BY retrieved_at ASC')
+        .all(source) as { id: string; retrieved_at: string; request_json: string; storage_path: string }[]
+      return rows.flatMap((row) => {
+        try {
+          return [{
+            id: row.id,
+            retrievedAt: row.retrieved_at,
+            request: JSON.parse(row.request_json) as unknown,
+            payload: JSON.parse(fs.readFileSync(row.storage_path, 'utf8')) as unknown,
+          }]
+        } catch {
+          // A snapshot whose file is gone is skipped, never guessed at.
+          return []
+        }
+      })
+    },
+
     listRawSnapshots(limit = 50) {
       const rows = listSnapshots.all(limit) as { id: string; source: string; retrieved_at: string }[]
       return rows.map((row) => ({ id: row.id, source: row.source, retrievedAt: row.retrieved_at }))

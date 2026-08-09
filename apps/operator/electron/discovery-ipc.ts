@@ -48,6 +48,24 @@ export type DiscoveryCandidateSummary = {
   phone: string | null
   /** DEC-074. From the listing's own `gps_coordinates`, when present — no geocoding call is made. */
   coordinates: { latitude: number; longitude: number } | null
+  /**
+   * DEC-106. Verified public detail the listing already carries and which
+   * every retrieval had been discarding. These are the fields
+   * FUNCTIONAL_DESIGN §8.1 asks a demonstration to be built from — services,
+   * hours, the business's own photo — and none of them reached it, which is
+   * why a generated demonstration was the business's own contact card.
+   *
+   * All of it is the business's own published listing content. Nothing here is
+   * inferred, and anything absent stays `null` rather than being filled in
+   * (DEC-005).
+   */
+  serviceOptions: readonly string[]
+  highlights: readonly string[]
+  categories: readonly string[]
+  operatingHours: Readonly<Record<string, string>> | null
+  priceRange: string | null
+  /** The listing's own photo, published by or about the business (DEC-025). */
+  photoUrl: string | null
 }
 
 export type DiscoveryRunResult =
@@ -80,6 +98,11 @@ function numberOrNull(value: unknown): number | null {
  * the same missing-data discipline the scoring modules use, applied here to
  * raw listing fields.
  */
+/** DEC-107. The same extraction, exported so a session restore can rebuild candidates from a retained payload without touching the network. */
+export function extractCandidatesForRestore(payload: unknown): readonly DiscoveryCandidateSummary[] {
+  return extractCandidates(payload)
+}
+
 function extractCandidates(payload: unknown): readonly DiscoveryCandidateSummary[] {
   if (typeof payload !== 'object' || payload === null) return []
   const localResults = (payload as Record<string, unknown>).local_results
@@ -89,6 +112,26 @@ function extractCandidates(payload: unknown): readonly DiscoveryCandidateSummary
     const gps = typeof item.gps_coordinates === 'object' && item.gps_coordinates !== null ? (item.gps_coordinates as Record<string, unknown>) : {}
     const latitude = numberOrNull(gps.latitude)
     const longitude = numberOrNull(gps.longitude)
+    // DEC-106. `extensions` is a list of single-key objects, each keyed by the
+    // attribute group Google chose — `service_options`, `highlights`, and so
+    // on. Only the two groups that describe what the business offers are read;
+    // the rest are left alone rather than flattened into a soup of claims.
+    const extensions = Array.isArray(item.extensions) ? item.extensions : []
+    const group = (key: string): readonly string[] => {
+      for (const entry of extensions) {
+        if (typeof entry !== 'object' || entry === null) continue
+        const value = (entry as Record<string, unknown>)[key]
+        if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      }
+      return []
+    }
+    const hours = typeof item.operating_hours === 'object' && item.operating_hours !== null
+      ? Object.fromEntries(
+          Object.entries(item.operating_hours as Record<string, unknown>)
+            .filter(([, v]) => typeof v === 'string' && v.trim().length > 0) as [string, string][],
+        )
+      : null
+
     return {
       name: textOrNull(item.title),
       rating: numberOrNull(item.rating),
@@ -99,6 +142,12 @@ function extractCandidates(payload: unknown): readonly DiscoveryCandidateSummary
       website: textOrNull(item.website),
       phone: textOrNull(item.phone),
       coordinates: latitude !== null && longitude !== null ? { latitude, longitude } : null,
+      serviceOptions: group('service_options'),
+      highlights: group('highlights'),
+      categories: Array.isArray(item.types) ? item.types.filter((v): v is string => typeof v === 'string') : [],
+      operatingHours: hours && Object.keys(hours).length > 0 ? hours : null,
+      priceRange: textOrNull(item.price),
+      photoUrl: textOrNull(item.thumbnail),
     }
   })
 }

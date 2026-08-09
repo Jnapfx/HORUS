@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { screenListingGates, type ReputationScore } from '../domain/reputation-scoring'
+import { screenListingGates, buildReputationScore, type ReputationScore } from '../domain/reputation-scoring'
+import { summarizeReviewHistory } from '../domain/review-history'
+import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
+import { resolveJudgment, emptyJudgment } from '../domain/operator-judgment'
 import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { assessProximity, type Coordinates } from '../domain/proximity'
 import { CandidateScoreAction, CandidateWebOpportunityAction } from './CandidateActions'
@@ -67,10 +70,98 @@ export function OperatorWorkspace() {
   const [audits, setAudits] = useState<Record<string, WebOpportunityAudit>>({})
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null)
 
+  const [restoring, setRestoring] = useState(true)
+
   useEffect(() => {
     if (homeBase !== undefined) return
     void window.horus?.discovery.getHomeBaseCoordinates().then(setHomeBase)
   }, [homeBase])
+
+  /**
+   * DEC-107. Rebuilds the last session from evidence already on disk, so
+   * closing the application no longer throws away a search the operator paid
+   * for. Costs nothing — no request is made.
+   *
+   * Scores are **recomputed** from the retained review snapshots rather than
+   * restored from a stored copy, which is charter §14's own model: evidence is
+   * immutable, everything derived from it is recomputable, and a second stored
+   * copy of a score is a thing that can drift from the evidence that produced
+   * it. The operator's recorded judgment (DEC-094) is read back and applied,
+   * so a candidate that qualified yesterday still qualifies today.
+   */
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const bridge = window.horus
+      if (!bridge) { setRestoring(false); return }
+      try {
+        const [session, judgmentEvents] = await Promise.all([bridge.session.restore(), bridge.judgment.list()])
+        if (cancelled || !session.discovery) return
+
+        const request = session.discovery.request as { category?: string; city?: string } | null
+        if (request?.category && request?.city) {
+          setInput((current) => ({ ...current, category: request.category!, city: request.city! }))
+        }
+
+        // Rebuilt from the retained snapshot. No request is made, so a
+        // restore can never spend a credit.
+        const outcome = {
+          status: 'completed' as const,
+          snapshotId: session.discovery.snapshotId,
+          retrievedAt: session.discovery.retrievedAt,
+          candidateCount: session.discovery.candidates.length,
+          candidates: session.discovery.candidates,
+          fromCache: true,
+        }
+        setResult(outcome as unknown as DiscoveryRunResult)
+        setConfirmed(true)
+
+        // Recompute a score for every candidate whose review history is
+        // already retained, applying whatever judgment was recorded for it.
+        const restored: Record<string, ReputationScore> = {}
+        for (const candidate of outcome.candidates) {
+          const dataId = candidate.dataId
+          if (!dataId) continue
+          const history = session.reviewHistories[dataId]
+          if (!history) continue
+          const reviews = (history.reviews as { iso_date?: string; rating?: number }[])
+            .filter((r) => typeof r.iso_date === 'string' && typeof r.rating === 'number')
+            .map((r) => ({ isoDate: r.iso_date!, rating: r.rating! }))
+          if (reviews.length === 0) continue
+          const summary = summarizeReviewHistory({ reviews, retrievedAt: history.retrievedAt, paginationExhausted: history.paginationExhausted })
+          const prior = findRecordedJudgment(judgmentEvents as JudgmentEvent[], dataId)
+          const assessed = resolveJudgment(prior?.judgment ?? emptyJudgment())
+          restored[dataId] = buildReputationScore({
+            listingId: dataId,
+            retrievedAt: history.retrievedAt,
+            rating: candidate.rating === null ? { status: 'unmeasured', reason: 'No rating on the listing.' } : { status: 'measured', value: candidate.rating },
+            reviewCount: candidate.reviewCount === null ? { status: 'unmeasured', reason: 'No review count on the listing.' } : { status: 'measured', value: candidate.reviewCount },
+            recentActivity: {
+              reviewsLast90Days: { status: 'measured', value: summary.reviewsLast90Days },
+              reviewsLast365Days: { status: 'measured', value: summary.reviewsLast365Days },
+              daysSinceLatestReview: summary.daysSinceLatestReview === null
+                ? { status: 'unmeasured', reason: 'No reviews were retrieved.' }
+                : { status: 'measured', value: summary.daysSinceLatestReview },
+            },
+            recentConsistency: summary.recentConsistency
+              ? { status: 'measured', value: summary.recentConsistency }
+              : { status: 'unmeasured', reason: 'Fewer than 5 trailing-year reviews were retrieved.' },
+            longevity: summary.retrievedHistorySpanYears === null
+              ? { status: 'unmeasured', reason: 'Fewer than two dated reviews were retrieved.' }
+              : { status: 'measured', value: { historySpanYears: summary.retrievedHistorySpanYears } },
+            complaintPattern: assessed.complaintPattern,
+            operationalStatus: assessed.operationalStatus,
+            listingIdentity: assessed.listingIdentity,
+            market: { status: 'within_target', evidence: 'Discovered via a search already scoped to the target city.' },
+          })
+        }
+        if (!cancelled && Object.keys(restored).length > 0) setScores(restored)
+      } finally {
+        if (!cancelled) setRestoring(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const run = () => {
     setRunning(true)
@@ -96,7 +187,7 @@ export function OperatorWorkspace() {
           Operator workspace{input.city.trim() ? ` · ${input.city.trim()}` : ''}
         </p>
         <span className="workspace-badge">
-          {completed ? `${completed.candidateCount} candidates retrieved` : 'No search run yet'}
+          {restoring ? 'Restoring last session…' : completed ? `${completed.candidateCount} candidates retrieved` : 'No search run yet'}
         </span>
       </header>
 

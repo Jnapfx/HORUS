@@ -10,7 +10,7 @@ import { createClaudeCodeRuntime } from './agent/runtime.js'
 import { createWorkingDirectoryPreparer } from './agent/working-directory.js'
 import { buildGmailComposeHandoff } from './compose-handoff.js'
 import { OperatorConfigMissing, getHomeBaseCoordinates, loadOperatorConfig, requirePageSpeedApiKey, requireSerpApiKey } from './config.js'
-import { runRealDiscoverySearch } from './discovery-ipc.js'
+import { extractCandidatesForRestore, runRealDiscoverySearch } from './discovery-ipc.js'
 import { listIntegrationContracts } from './integrations/contracts.js'
 import { createHorusStore } from './persistence.js'
 import { publishDemonstrationSite, removeDemonstrationSite } from './publish-ipc.js'
@@ -338,6 +338,44 @@ app.whenReady().then(() => {
     return { status: 'recorded' as const, occurredAt }
   })
   ipcMain.handle('judgment:list', () => store.listEvents(['prospect']))
+  // DEC-107. Rebuilds the last working session from evidence already retained,
+  // so closing the application stops discarding a search the operator paid
+  // for. Spends nothing: every byte here is already on disk. Charter §14's own
+  // model — immutable evidence, derived state recomputed — rather than a
+  // second stored copy of the scores that could drift from the evidence.
+  ipcMain.handle('session:restore', () => {
+    const discoveries = store.listRawSnapshotsBySource('serpapi.google_maps')
+    const latest = discoveries.length > 0 ? discoveries[discoveries.length - 1] : null
+    const reviewSnapshots = store.listRawSnapshotsBySource('serpapi.google_maps_reviews')
+
+    const histories = new Map<string, { reviews: unknown[]; retrievedAt: string; paginationExhausted: boolean }>()
+    for (const snapshot of reviewSnapshots) {
+      const payload = snapshot.payload as Record<string, unknown> | null
+      const dataId = (payload?.search_parameters as Record<string, unknown> | undefined)?.data_id
+      if (typeof dataId !== 'string') continue
+      const entry = histories.get(dataId) ?? { reviews: [], retrievedAt: snapshot.retrievedAt, paginationExhausted: false }
+      entry.reviews.push(...(Array.isArray(payload?.reviews) ? (payload!.reviews as unknown[]) : []))
+      entry.retrievedAt = snapshot.retrievedAt
+      entry.paginationExhausted = !(payload?.serpapi_pagination as Record<string, unknown> | undefined)?.next
+      histories.set(dataId, entry)
+    }
+
+    // Candidates are extracted here, from the retained payload, rather than
+    // returned raw for the renderer to re-run a search over. A restore that
+    // could reach the network is a restore that could spend a credit on
+    // startup, which is not a thing this application may do.
+    return {
+      discovery: latest
+        ? {
+            request: latest.request,
+            retrievedAt: latest.retrievedAt,
+            snapshotId: latest.id,
+            candidates: extractCandidatesForRestore(latest.payload),
+          }
+        : null,
+      reviewHistories: Object.fromEntries(histories),
+    }
+  })
   // DEC-096. DEC-031 exempts an engaged prospect from the 60-day removal
   // prompt, but nothing could record that a business had responded. HORUS
   // cannot observe a reply any more than it can observe a send (DEC-041,
