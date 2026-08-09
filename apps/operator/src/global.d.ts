@@ -90,7 +90,8 @@ declare global {
           | {
               status: 'completed'
               retrievedAt: string
-              performance: { status: 'measured'; value: { timeToInteractiveSeconds: number; snapshotId: string } } | { status: 'unmeasured'; reason: string }
+              mobileAudits: { lighthouseResult: { audits: Record<string, unknown> } } | null
+          performance: { status: 'measured'; value: { timeToInteractiveSeconds: number; snapshotId: string } } | { status: 'unmeasured'; reason: string }
               servesHttps: { status: 'measured'; value: boolean } | { status: 'unmeasured'; reason: string }
               telLinkFound: { status: 'measured'; value: { found: boolean; snapshotId: string } } | { status: 'unmeasured'; reason: string }
             }

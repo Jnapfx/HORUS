@@ -27,10 +27,41 @@ export type WebOpportunityMeasurementResult =
       status: 'completed'
       retrievedAt: string
       performance: Measured<{ timeToInteractiveSeconds: number; snapshotId: string }>
+      /**
+       * DEC-097. A trimmed slice of the same Lighthouse run `performance` is
+       * read from — no extra request, no extra credit. Deliberately raw: this
+       * process measures, the renderer scores, the same layering
+       * `screenListingGates` and review-history retrieval already follow. The
+       * shape is kept identical to PageSpeed's own so the renderer's pure
+       * `assessMobileResponsiveness` reads it unchanged.
+       */
+      mobileAudits: { lighthouseResult: { audits: Record<string, unknown> } } | null
       servesHttps: Measured<boolean>
       telLinkFound: Measured<{ found: boolean; snapshotId: string }>
     }
   | { status: 'failed'; reason: string; detail: string }
+
+/**
+ * DEC-097. Carries forward only the three audits the mobile factor needs,
+ * rather than the whole multi-megabyte Lighthouse document. Missing audits are
+ * simply absent from the slice, which the renderer treats as `unmeasured`
+ * rather than as a failure (charter 10.4).
+ */
+const MOBILE_AUDIT_IDS = ['viewport', 'content-width', 'tap-targets']
+
+function extractMobileAudits(payload: unknown): { lighthouseResult: { audits: Record<string, unknown> } } | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const lighthouse = (payload as Record<string, unknown>).lighthouseResult
+  if (typeof lighthouse !== 'object' || lighthouse === null) return null
+  const audits = (lighthouse as Record<string, unknown>).audits
+  if (typeof audits !== 'object' || audits === null) return null
+  const source = audits as Record<string, unknown>
+  const slice: Record<string, unknown> = {}
+  for (const id of MOBILE_AUDIT_IDS) {
+    if (id in source) slice[id] = source[id]
+  }
+  return { lighthouseResult: { audits: slice } }
+}
 
 function extractTimeToInteractiveSeconds(payload: unknown): number | null {
   if (typeof payload !== 'object' || payload === null) return null
@@ -64,6 +95,7 @@ export async function runWebOpportunityMeasurement(input: {
   const now = input.now ?? (() => new Date())
   let retrievedAt: string | null = null
 
+  let mobileAudits: { lighthouseResult: { audits: Record<string, unknown> } } | null = null
   let performance: Measured<{ timeToInteractiveSeconds: number; snapshotId: string }> = {
     status: 'unmeasured',
     reason: 'PageSpeed request did not complete.',
@@ -72,6 +104,7 @@ export async function runWebOpportunityMeasurement(input: {
     const response = await executePageSpeedMobile({ url: input.url, apiKey: input.pagespeedApiKey, fetchImpl: input.fetchImpl, now: input.now })
     retrievedAt = response.retrievedAt
     const stored = input.appendRawSnapshot({ source: 'pagespeed.mobile', request: response.requestUrl, retrievedAt: response.retrievedAt, payload: response.payload })
+    mobileAudits = extractMobileAudits(response.payload)
     const tti = extractTimeToInteractiveSeconds(response.payload)
     performance = tti === null
       ? { status: 'unmeasured', reason: 'PageSpeed response did not include a usable Time to Interactive value.' }
@@ -105,5 +138,5 @@ export async function runWebOpportunityMeasurement(input: {
 
   if (!retrievedAt) retrievedAt = now().toISOString()
 
-  return { status: 'completed', retrievedAt, performance, servesHttps, telLinkFound }
+  return { status: 'completed', retrievedAt, performance, mobileAudits, servesHttps, telLinkFound }
 }

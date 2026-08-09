@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { buildReputationScore, type ReputationScore } from '../domain/reputation-scoring'
 import { summarizeReviewHistory } from '../domain/review-history'
 import { buildWebOpportunityAudit, type WebOpportunityAudit } from '../domain/web-opportunity-audit'
+import { assessMobileResponsiveness } from '../domain/mobile-responsiveness'
 import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import {
   emptyJudgment,
@@ -270,7 +271,10 @@ export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candi
           url: candidate.website!,
           retrievedAt: outcome.retrievedAt,
           site: { availability: 'reachable' },
-          mobile: unmeasured('Requires a rendered inspection; not yet wired.'),
+          // DEC-097. The rendered inspection DEC-072 said this needed was
+          // already happening — every PageSpeed call returns a full mobile
+          // Lighthouse run, and only `interactive` was ever read from it.
+          mobile: assessMobileResponsiveness(outcome.mobileAudits),
           obsoleteAppearance,
           brokenElements: unmeasured('Requires a full link crawl; only a single tel: link check was performed, shown separately.'),
           performance: outcome.performance.status === 'measured'
