@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('horus', {
     /** DEC-081. Opens a Gmail compose window in the operator's default browser via `shell.openExternal` — no Gmail credential, no send capability (DEC-041). Requires explicit DEC-004 approval before calling. */
     openGmailHandoff: (input: { approvalId: string; to: string; subject: string; body: string; dataId: string | null }) => ipcRenderer.invoke('outreach:open-gmail-handoff', input),
     /** DEC-081. Records the operator's own declaration that they sent the message — charter 17.3, never inferred by HORUS. */
+    recordResponse: (input: { dataId: string | null; note: string }) => ipcRenderer.invoke('outreach:record-response', input),
     declareSent: (input: { dataId: string | null; to: string }) => ipcRenderer.invoke('outreach:declare-sent', input),
   },
   /** DEC-094. Durable operator judgment on charter 9.5's G4/G5/G6 gates. */

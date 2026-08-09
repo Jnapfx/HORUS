@@ -128,6 +128,8 @@ declare global {
           { status: 'opened'; occurredAt: string } | { status: 'failed'; reason: string }
         >
         declareSent: (input: { dataId: string | null; to: string }) => Promise<{ status: 'recorded'; occurredAt: string }>
+        /** DEC-096. Operator-declared: HORUS cannot observe a reply (DEC-041). Exempts the demonstration from DEC-031's 60-day prompt. */
+        recordResponse: (input: { dataId: string | null; note: string }) => Promise<{ status: 'recorded'; occurredAt: string }>
       }
       /** DEC-082. Charter §4's final step — recording a prospect's next follow-up and reading back the pipeline as a whole. */
       tracker: {

@@ -34,6 +34,27 @@ export type TrackerEntry = {
   outreachOpenedAt: string | null
   declaredSentAt: string | null
   followUp: { date: string; note: string; scheduledAt: string } | null
+  /**
+   * DEC-096. When the business itself responded, recorded by the operator.
+   * HORUS cannot observe a response any more than it can observe a send
+   * (DEC-041, charter 17.3), so this is always an operator declaration.
+   */
+  respondedAt: string | null
+  /** DEC-096. Set when a demonstration has been removed (DEC-090). */
+  removedAt: string | null
+}
+
+export const DEMONSTRATION_REVIEW_DAYS = 60
+
+export type DemonstrationReview = {
+  entry: TrackerEntry
+  daysLive: number
+  /**
+   * DEC-031: at 60 days from publication without a response, the operator is
+   * asked whether to remove the demonstration. Never removed automatically.
+   */
+  state: 'live' | 'expired_awaiting_decision' | 'engaged' | 'removed'
+  prompt: string | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -44,7 +65,14 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
 }
 
-const RECOGNIZED_EVENT_TYPES = new Set(['demonstration.published', 'outreach.gmail_handoff_opened', 'outreach.declared_sent', 'follow_up.scheduled'])
+const RECOGNIZED_EVENT_TYPES = new Set([
+  'demonstration.published',
+  'demonstration.removed',
+  'outreach.gmail_handoff_opened',
+  'outreach.declared_sent',
+  'outreach.response_recorded',
+  'follow_up.scheduled',
+])
 
 /**
  * Groups every `demonstration`/`outreach`/`follow_up` event by its
@@ -61,7 +89,9 @@ export function buildTrackerView(events: readonly TrackerEvent[]): readonly Trac
   const entryFor = (id: string): TrackerEntry => {
     const existing = byId.get(id)
     if (existing) return existing
-    const created: TrackerEntry = { id, businessName: null, demoUrl: null, publishedAt: null, outreachTo: null, outreachOpenedAt: null, declaredSentAt: null, followUp: null }
+    const created: TrackerEntry = {
+      respondedAt: null,
+      removedAt: null, id, businessName: null, demoUrl: null, publishedAt: null, outreachTo: null, outreachOpenedAt: null, declaredSentAt: null, followUp: null }
     byId.set(id, created)
     return created
   }
@@ -81,6 +111,10 @@ export function buildTrackerView(events: readonly TrackerEvent[]): readonly Trac
       entry.outreachOpenedAt = event.occurredAt
     } else if (event.eventType === 'outreach.declared_sent') {
       entry.declaredSentAt = event.occurredAt
+    } else if (event.eventType === 'demonstration.removed') {
+      entry.removedAt = event.occurredAt
+    } else if (event.eventType === 'outreach.response_recorded') {
+      entry.respondedAt = event.occurredAt
     } else if (event.eventType === 'follow_up.scheduled') {
       const date = stringOrNull(payload.date)
       if (date) entry.followUp = { date, note: stringOrNull(payload.note) ?? '', scheduledAt: event.occurredAt }
@@ -88,4 +122,57 @@ export function buildTrackerView(events: readonly TrackerEvent[]): readonly Trac
   }
 
   return [...byId.values()].sort((a, b) => (a.followUp?.date ?? '9999-99-99').localeCompare(b.followUp?.date ?? '9999-99-99'))
+}
+
+/**
+ * DEC-096. Charter §15 and DEC-031's 60-day review, computed rather than
+ * scheduled: at 60 days from publication without a recorded response, the
+ * operator is asked whether to remove the demonstration.
+ *
+ * Three of DEC-031's clauses shape this, and each is a constraint rather than
+ * a detail:
+ *
+ *   - **Nothing is taken down automatically.** This returns a question, never
+ *     an action. DEC-090 supplies the removal mechanism; only the operator
+ *     invokes it.
+ *   - **The prompt repeats rather than firing once.** It is derived from the
+ *     publication date on every read, so it cannot be dismissed into silence
+ *     by a notification that was missed — an ignored prompt stays visible,
+ *     which DEC-031 names as its own mitigation for the risk it accepts.
+ *   - **A prospect that has engaged is not subject to it.** A recorded
+ *     response takes the demonstration out of scope entirely.
+ *
+ * `now` is a parameter, like `assessFreshness`'s: this asks a question about
+ * elapsed wall-clock time, so unlike scoring it must not be reproducible
+ * against a stored timestamp.
+ */
+export function reviewDemonstrations(entries: readonly TrackerEntry[], now: Date): readonly DemonstrationReview[] {
+  return entries
+    .filter((entry) => entry.publishedAt !== null)
+    .map((entry) => {
+      const published = Date.parse(entry.publishedAt!)
+      const daysLive = Number.isNaN(published)
+        ? 0
+        : Math.floor((now.getTime() - published) / 86_400_000)
+
+      if (entry.removedAt) {
+        return { entry, daysLive, state: 'removed' as const, prompt: null }
+      }
+      if (entry.respondedAt) {
+        // DEC-031: "Where a prospect has engaged, the demonstration is not
+        // subject to this prompt."
+        return { entry, daysLive, state: 'engaged' as const, prompt: null }
+      }
+      if (daysLive >= DEMONSTRATION_REVIEW_DAYS) {
+        return {
+          entry,
+          daysLive,
+          state: 'expired_awaiting_decision' as const,
+          prompt:
+            `${entry.businessName ?? entry.id}'s demonstration has been public for ${daysLive} days with no recorded ` +
+            `response. Its data is that old too. Decide whether to remove it — HORUS will not take it down on its own.`,
+        }
+      }
+      return { entry, daysLive, state: 'live' as const, prompt: null }
+    })
 }

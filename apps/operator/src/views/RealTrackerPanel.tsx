@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { buildTrackerView, type TrackerEvent } from '../domain/tracker'
+import { buildTrackerView, reviewDemonstrations, type TrackerEvent } from '../domain/tracker'
 
 /**
  * DEC-082. Charter §4's tracker: a read-only projection over the durable
@@ -33,6 +33,31 @@ export function RealTrackerPanel() {
       <p>Every prospect with a real published demonstration, an opened outreach handoff, a declared send, or a scheduled follow-up — reconstructed from the append-only event log, never itself the source of truth.</p>
       <button className="secondary" onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button>
       {entries && entries.length === 0 && <p className="notice">No prospect has been published, contacted, or scheduled yet.</p>}
+      {/* DEC-096. DEC-031's 60-day review, derived on every read so an ignored
+          prompt stays visible rather than firing once and vanishing. */}
+      {entries && entries.length > 0 && (() => {
+        const due = reviewDemonstrations(entries, new Date()).filter((review) => review.state === 'expired_awaiting_decision')
+        if (due.length === 0) return null
+        return (
+          <div className="gate-zone">
+            <h4>Demonstrations awaiting your decision — charter 15, DEC-031</h4>
+            <ul className="checklist">
+              {due.map((review) => (
+                <li key={review.entry.id}>
+                  {review.prompt}
+                  {review.entry.demoUrl && (
+                    <> <a href={review.entry.demoUrl} target="_blank" rel="noopener noreferrer">{review.entry.demoUrl}</a></>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="notice">
+              Removing one is done from that prospect's record (DEC-090). If the business did respond, record that
+              below — an engaged prospect is not subject to this prompt.
+            </p>
+          </div>
+        )
+      })()}
       {entries && entries.length > 0 && (
         <ul className="tracker-list">
           {entries.map((entry) => (
@@ -43,6 +68,23 @@ export function RealTrackerPanel() {
               {entry.outreachOpenedAt && <> · outreach opened {entry.outreachOpenedAt}</>}
               {entry.declaredSentAt && <> · sent (operator-declared) {entry.declaredSentAt}</>}
               {entry.followUp ? <> · next follow-up {entry.followUp.date}{entry.followUp.note ? ` (${entry.followUp.note})` : ''}</> : <> · no follow-up scheduled</>}
+              {entry.respondedAt && <> · <strong>responded {entry.respondedAt}</strong></>}
+              {entry.removedAt && <> · demonstration removed {entry.removedAt}</>}
+              {!entry.respondedAt && !entry.removedAt && entry.publishedAt && (
+                <>
+                  {' · '}
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      const note = window.prompt(`Record a response from ${entry.businessName ?? entry.id}. What happened?`)
+                      if (note === null) return
+                      void window.horus?.outreach.recordResponse({ dataId: entry.id, note }).then(load)
+                    }}
+                  >
+                    Record a response
+                  </button>
+                </>
+              )}
             </li>
           ))}
         </ul>

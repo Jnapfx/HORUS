@@ -19,6 +19,11 @@ describe('buildTrackerView', () => {
         demoUrl: 'https://x.pages.dev',
         publishedAt: '2026-08-08T10:00:00.000Z',
         outreachTo: 'owner@tufflawn.example',
+        // DEC-096 added these two. Kept in the deep-equality assertion on
+        // purpose: it is what caught the shape change, and a tracker entry
+        // silently growing a field is exactly what it should catch.
+        respondedAt: null,
+        removedAt: null,
         outreachOpenedAt: '2026-08-08T10:05:00.000Z',
         declaredSentAt: '2026-08-08T10:10:00.000Z',
         followUp: { date: '2026-08-15', note: 'Call to check interest', scheduledAt: '2026-08-08T10:11:00.000Z' },
