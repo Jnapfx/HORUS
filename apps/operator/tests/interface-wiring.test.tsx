@@ -280,3 +280,65 @@ describe('DEC-095 — refreshing stale evidence, and being shown what changed', 
     expect(await screen.findByText(/have not been recalculated/i)).toBeTruthy()
   })
 })
+
+describe('DEC-101 — a material edit invalidates the approval it was given under', () => {
+  // AGENT_ARCHITECTURE §11. The publish gate always did this; the outreach
+  // gate did not, and its checkbox reads "I approve sending this exact
+  // message, as written above".
+  const NOW3 = new Date('2026-08-09T12:00:00.000Z')
+
+  function renderPublished() {
+    const demonstration = vi.fn().mockResolvedValue({
+      status: 'published', url: 'https://demo.pages.dev', projectName: 'horus-test-concept',
+      publishedAt: '2026-08-09T12:00:00.000Z', deployOutput: '',
+    })
+    ;(window as unknown as { horus: unknown }).horus = { publish: { demonstration } }
+    render(
+      <ProspectRecord
+        id="data-1"
+        candidates={[candidate()]}
+        scores={{}}
+        audits={{}}
+        homeBase={null}
+        evidenceRetrievedAt={new Date(NOW3.getTime() - 86_400_000).toISOString()}
+        onClear={() => {}}
+        now={NOW3}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /generate demonstration preview/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i approve publishing this demonstration/i }))
+    fireEvent.click(screen.getByRole('button', { name: /publish now/i }))
+  }
+
+  afterEach(() => { delete (window as unknown as { horus?: unknown }).horus })
+
+  it('regenerating the preview clears the publish approval', () => {
+    renderPublished()
+    // Already covered behaviour, asserted here so the pair is visible together.
+    fireEvent.click(screen.getByRole('button', { name: /generate demonstration preview/i }))
+    const approval = screen.getByRole('checkbox', { name: /i approve publishing this demonstration/i }) as HTMLInputElement
+    expect(approval.checked).toBe(false)
+  })
+
+  it.each(['subject', 'body'])('editing the %s clears the outreach approval', async (field) => {
+    renderPublished()
+    const label = field === 'subject' ? /^subject$/i : /^body$/i
+    const input = await screen.findByLabelText(label)
+    const approval = await screen.findByRole('checkbox', { name: /i approve sending this exact message/i }) as HTMLInputElement
+
+    fireEvent.click(approval)
+    expect(approval.checked, 'the approval did not tick').toBe(true)
+
+    fireEvent.change(input, { target: { value: 'something the operator never approved' } })
+    expect(approval.checked, 'an edited message kept its old approval').toBe(false)
+  })
+
+  it('editing the recipient clears the outreach approval too', async () => {
+    renderPublished()
+    const approval = await screen.findByRole('checkbox', { name: /i approve sending this exact message/i }) as HTMLInputElement
+    const recipient = await screen.findByLabelText(/recipient email/i)
+    fireEvent.click(approval)
+    fireEvent.change(recipient, { target: { value: 'someone.else@example.com' } })
+    expect(approval.checked).toBe(false)
+  })
+})
