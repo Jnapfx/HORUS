@@ -735,3 +735,174 @@ input[type='checkbox'] {
   font: inherit;
   font-size: var(--step-0);
 }
+
+/* ---------------------------------------------------- operator workspace ---
+ * DEC-102. FUNCTIONAL_DESIGN §6's six named views, laid out as the operator's
+ * prototype proposed: a fixed rail grouping workflow, approvals and history,
+ * with one view in the main area at a time.
+ *
+ * Deliberately absent: the prototype rendered each scoring factor as a filled
+ * bar. A bar has two states, and this model needs three — measured with a
+ * value, measured at zero, and never measured at all. Three of five
+ * web-opportunity factors are `unmeasured` today, and drawing "unmeasured" and
+ * "zero" identically is the failure charter 10.4 and hard rule 6 exist to
+ * prevent. Values stay as tabular numerals with their denominator and status
+ * (DEC-083 rule 4). */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--surface-0);
+}
+
+.workspace-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+.workspace-mark {
+  margin: 0;
+  /* An h1 for document structure (DEC-038), sized as a wordmark. */
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--text-primary);
+}
+
+.workspace-context {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: var(--step-0);
+  color: var(--text-secondary);
+}
+
+.workspace-badge {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+}
+
+.workspace-body {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.workspace-nav {
+  width: 232px;
+  flex: none;
+  padding: var(--space-5) var(--space-3);
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+.workspace-nav-group {
+  margin: var(--space-5) var(--space-3) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.workspace-nav > div:first-child .workspace-nav-group {
+  margin-top: 0;
+}
+
+.workspace-nav ul {
+  margin-bottom: var(--space-4);
+}
+
+.workspace-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-nav-item {
+  width: 100%;
+  padding: 10px var(--space-3);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--step-0);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+
+.workspace-nav-item:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.workspace-nav-item.active {
+  background: var(--wash-info);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.workspace-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-6) var(--space-6) var(--space-7);
+  overflow-y: auto;
+}
+
+.workspace-main > section > h2,
+.workspace-main > section > h2:first-child {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--step-3);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.workspace-main > section > p {
+  max-width: 78ch;
+  color: var(--text-secondary);
+}
+
+/* Inside the workspace the panels are the view, not cards floating in it. */
+.workspace-main .discovery-panel,
+.workspace-main .analyst-panel {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.workspace-main .workflow-shell {
+  padding: 0;
+  max-width: none;
+}
+
+@media (max-width: 900px) {
+  .workspace-body {
+    display: block;
+  }
+
+  .workspace-nav {
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .workspace-main {
+    padding: var(--space-5) var(--space-4);
+  }
+}

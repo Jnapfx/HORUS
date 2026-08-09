@@ -10,7 +10,7 @@ import type { AnalystRunResult, DraftSummary, EvidenceSummary } from './types'
  */
 
 export function AnalystPanel() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [evidence, setEvidence] = useState<EvidenceSummary[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [running, setRunning] = useState(false)

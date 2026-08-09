@@ -260,6 +260,7 @@ The functional design is ready to hand to Phase 3 only when a reviewer can confi
 | --- | --- | --- |
 | HORUS visual identity | Restrained evidence-workbench for the operator; limited adaptive styling for each demonstration. | DEC-036 |
 | HORUS visual register (2026-08-08) | Dark neutral instrument-panel register for the operator interface, under six binding rules; DEC-036's principles and exclusions retained. | DEC-083 |
+| Interface structure (2026-08-09) | §6's six named views exist as views, in a workspace with a grouped rail. Factor values stay numerals, never filled bars. | DEC-102 |
 | Demonstration template strategy | One common mobile-first template with bounded per-prospect adaptation. | DEC-037 |
 | Accessibility target | Practical WCAG AA-equivalent baseline; Phase 3 defines verification methods. | DEC-038 |
 | Market-boundary control | Administrative city boundary by default; broader-market interpretation only when the operator explicitly confirms it for that run. | DEC-039 |

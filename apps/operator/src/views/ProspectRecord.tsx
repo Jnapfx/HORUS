@@ -17,8 +17,18 @@ import type { CandidateSummary } from './types'
  * charter §4/DEC-004's two blocking gates apply only much later, to a
  * demonstration and to outreach, neither of which exists yet from real data.
  */
+/**
+ * DEC-102. Which slice of the record to show. The component is mounted once by
+ * `OperatorWorkspace` and told which section is on screen, rather than being
+ * rendered inside three separate view branches — React would unmount it on
+ * every switch and silently discard a demonstration preview or a half-written
+ * outreach draft.
+ */
+export type ProspectSection = 'evidence' | 'demonstration' | 'outreach' | 'hidden'
+
 export function ProspectRecord({
   id,
+  section = 'evidence',
   candidates,
   scores,
   audits,
@@ -29,6 +39,7 @@ export function ProspectRecord({
   now,
 }: {
   id: string
+  section?: ProspectSection
   candidates: readonly CandidateSummary[]
   scores: Record<string, ReputationScore>
   audits: Record<string, WebOpportunityAudit>
@@ -87,6 +98,9 @@ export function ProspectRecord({
   const [followUpScheduled, setFollowUpScheduled] = useState<{ occurredAt: string } | null>(null)
 
   if (!candidate) return null
+  // Mounted but off-screen: keeps every draft and preview alive while the
+  // operator is on a view that does not show this record.
+  if (section === 'hidden') return null
   const score = scores[id]
   const audit = audits[id]
   const proximity = homeBase && candidate.coordinates ? assessProximity(homeBase, candidate.coordinates) : null
@@ -228,17 +242,16 @@ export function ProspectRecord({
 
   return (
     <div className="prospect-card" aria-label="Selected prospect record">
-      <p className="eyebrow">SELECTED PROSPECT · READ-ONLY · NOT AN APPROVAL, PUBLICATION, OR CONTACT</p>
+      <p className="eyebrow">SELECTED PROSPECT · {section === 'demonstration' ? 'DEC-004 GATE ONE' : section === 'outreach' ? 'DEC-004 GATE TWO' : 'EVIDENCE'}</p>
       <h3>{candidate.name ?? 'Unnamed listing'}</h3>
-      <p>{candidate.address ?? 'No address on the listing'} · {candidate.type ?? 'no category'} · {candidate.website ?? 'no website'} · {candidate.phone ?? 'no phone on the listing'}</p>
-      {proximity && <p>{proximity.distanceMiles} mi · {proximity.band} (straight-line, DEC-074)</p>}
 
-      {/* DEC-089. Shown here, before either gate, so the operator learns the
-          evidence is stale while there is still something to do about it —
-          not at the moment they try to publish. */}
       <p className={freshness.blocksContact ? 'gate' : 'notice'}>
         <strong>Evidence freshness: {freshness.status}.</strong> {freshness.evidence}
       </p>
+
+      {section === 'evidence' && (<>
+      <p>{candidate.address ?? 'No address on the listing'} · {candidate.type ?? 'no category'} · {candidate.website ?? 'no website'} · {candidate.phone ?? 'no phone on the listing'}</p>
+      {proximity && <p>{proximity.distanceMiles} mi · {proximity.band} (straight-line, DEC-074)</p>}
 
       {searchContext && (
         <div className="button-row">
@@ -312,6 +325,9 @@ export function ProspectRecord({
         </>
       ) : <p className="notice">No website field on this listing; nothing to capture.</p>}
 
+      </>)}
+
+      {section === 'demonstration' && (<>
       <h4>Demonstration preview</h4>
       <p className="notice">Builds a single-page HTML preview from only the verified fields already shown above (DEC-005) — never published, never sent anywhere, not the DEC-004 approval gate. Missing fields render as a labelled placeholder, not a guess.</p>
       <button className="secondary" onClick={generateDemoPreview}>Generate demonstration preview (not published, DEC-079)</button>
@@ -399,7 +415,15 @@ export function ProspectRecord({
         </>
       )}
 
-      {outreachDraft && (
+      </>)}
+
+      {section === 'outreach' && !outreachDraft && (
+        <p className="notice">
+          Nothing to send yet. An outreach draft is created only once a demonstration has actually been published
+          (DEC-081), which happens on the Demo review view.
+        </p>
+      )}
+      {section === 'outreach' && outreachDraft && (
         <>
           <h4>Outreach — real Gmail handoff, second DEC-004 gate</h4>
           <p className="notice">
