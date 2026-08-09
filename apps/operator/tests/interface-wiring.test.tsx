@@ -68,9 +68,10 @@ describe('DEC-093 — the shortlist is the only route to everything downstream',
     // This is precisely what the operator saw for the whole life of the
     // project: an excluded candidate, a stated reason, and no button.
     expect(screen.queryByRole('button', { name: /select as prospect/i })).toBeNull()
-    // "not yet rankable" appears in both the count heading and the list
-    // label, so match the reason itself — the thing the operator has to read.
-    expect(screen.getByText(/not_reputation_qualified/)).toBeTruthy()
+    // Match the reason as the operator reads it. DEC-103 replaced the raw
+    // token with words, and made "never assessed" a separate reason — this
+    // fixture is scored and short of the threshold, not unassessed.
+    expect(screen.getByText(/did not reach the qualification threshold/i)).toBeTruthy()
   })
 
   it('offers the button, and calls back with the right id, once a candidate qualifies', () => {

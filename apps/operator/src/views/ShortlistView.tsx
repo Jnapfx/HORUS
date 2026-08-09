@@ -13,6 +13,18 @@ import type { CandidateSummary } from './types'
  * input is listed under "not yet rankable" with the specific reason, never
  * silently dropped or guessed into a slot.
  */
+/**
+ * DEC-103. Each reason in the operator's own words. `reputation_not_assessed`
+ * is phrased so it cannot be mistaken for a judgement about the business:
+ * nothing has been measured, and that is a state, not a verdict.
+ */
+const EXCLUSION_TEXT: Record<string, string> = {
+  reputation_not_assessed: 'reputation not assessed yet — no review history has been retrieved for this listing',
+  not_reputation_qualified: 'scored, and did not reach the qualification threshold',
+  no_proximity_data: 'no proximity band — home base or listing coordinates are missing',
+  no_web_opportunity_data: 'web opportunity not measured yet',
+}
+
 export function ShortlistView({
   candidates,
   scores,
@@ -63,7 +75,11 @@ export function ShortlistView({
         <>
           <p className="notice">Not yet rankable:</p>
           <ul className="checklist">
-            {shortlist.excluded.map((exclusion) => <li key={exclusion.candidate.id}>{nameFor(exclusion.candidate.id)} — {exclusion.reason}</li>)}
+            {shortlist.excluded.map((exclusion) => (
+              <li key={exclusion.candidate.id}>
+                {nameFor(exclusion.candidate.id)} — {EXCLUSION_TEXT[exclusion.reason]}
+              </li>
+            ))}
           </ul>
         </>
       )}

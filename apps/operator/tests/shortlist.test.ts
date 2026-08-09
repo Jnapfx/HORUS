@@ -63,3 +63,41 @@ describe('buildShortlist', () => {
     expect(buildShortlist([])).toEqual({ ranked: [], excluded: [] })
   })
 })
+
+describe('DEC-103 — never assessed is not the same as assessed and short', () => {
+  const base = { proximityBand: 'within_5_miles' as const, webOpportunityScoreLowerBound: 50 }
+
+  it('reports a candidate whose reputation was never scored as not assessed', () => {
+    // The screen that prompted this showed ten businesses all reading
+    // "not_reputation_qualified" when nine had never been looked at.
+    const result = buildShortlist([
+      { id: 'never-scored', qualified: false, reputationScoreLowerBound: null, ...base },
+    ])
+    expect(result.excluded[0].reason).toBe('reputation_not_assessed')
+  })
+
+  it('still reports a scored candidate below the threshold as not qualified', () => {
+    const result = buildShortlist([
+      { id: 'scored-low', qualified: false, reputationScoreLowerBound: 53.5, ...base },
+    ])
+    expect(result.excluded[0].reason).toBe('not_reputation_qualified')
+  })
+
+  it('keeps the two apart in one shortlist', () => {
+    const result = buildShortlist([
+      { id: 'never-scored', qualified: false, reputationScoreLowerBound: null, ...base },
+      { id: 'scored-low', qualified: false, reputationScoreLowerBound: 53.5, ...base },
+    ])
+    expect(result.excluded.map((exclusion) => exclusion.reason))
+      .toEqual(['reputation_not_assessed', 'not_reputation_qualified'])
+  })
+
+  it('does not let a missing score hide a genuine qualification', () => {
+    // A scored, qualified candidate must still rank — the new branch checks
+    // for an absent score, not for an unqualified one.
+    const result = buildShortlist([
+      { id: 'good', qualified: true, reputationScoreLowerBound: 88, ...base },
+    ])
+    expect(result.ranked).toHaveLength(1)
+  })
+})
