@@ -27,7 +27,19 @@ export type ShortlistCandidateInput = {
   proximityBand: ProximityBand | null
 }
 
-export type ShortlistExclusionReason = 'not_reputation_qualified' | 'no_proximity_data' | 'no_web_opportunity_data'
+/**
+ * DEC-103. `reputation_not_assessed` is deliberately distinct from
+ * `not_reputation_qualified`. A candidate whose review history was never
+ * retrieved has not failed anything — nothing was measured. Reporting both as
+ * "not qualified" is the exact conflation charter 9.6 and hard rule 6 forbid,
+ * and it read as ten rejections on a screen where nine businesses had simply
+ * never been looked at.
+ */
+export type ShortlistExclusionReason =
+  | 'reputation_not_assessed'
+  | 'not_reputation_qualified'
+  | 'no_proximity_data'
+  | 'no_web_opportunity_data'
 
 export type ShortlistExclusion = { candidate: ShortlistCandidateInput; reason: ShortlistExclusionReason }
 
@@ -47,6 +59,11 @@ export function buildShortlist(candidates: readonly ShortlistCandidateInput[]): 
   const rankable: ShortlistCandidateInput[] = []
 
   for (const candidate of candidates) {
+    // Never scored is not the same as scored and short of the threshold.
+    if (candidate.reputationScoreLowerBound === null) {
+      excluded.push({ candidate, reason: 'reputation_not_assessed' })
+      continue
+    }
     if (!candidate.qualified) {
       excluded.push({ candidate, reason: 'not_reputation_qualified' })
       continue
