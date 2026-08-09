@@ -38,6 +38,13 @@ export type WebOpportunityMeasurementResult =
       mobileAudits: { lighthouseResult: { audits: Record<string, unknown> } } | null
       servesHttps: Measured<boolean>
       telLinkFound: Measured<{ found: boolean; snapshotId: string }>
+      /**
+       * DEC-098. Mechanical patterns read from the page text this module
+       * already fetches and stores for the tel: check — no new request. Raw
+       * findings only: the renderer maps them onto the model's indicators,
+       * the same measure-here/score-there split DEC-097 follows.
+       */
+      obsoleteSignals: { obsoleteTechnologyMarkers: string[]; latestCopyrightYear: number | null } | null
     }
   | { status: 'failed'; reason: string; detail: string }
 
@@ -61,6 +68,37 @@ function extractMobileAudits(payload: unknown): { lighthouseResult: { audits: Re
     if (id in source) slice[id] = source[id]
   }
   return { lighthouseResult: { audits: slice } }
+}
+
+/**
+ * DEC-098. Long-obsolete technology, matched verbatim. Presence only: a marker
+ * that is absent proves nothing, because the page may render it later or the
+ * fetch may have been truncated (charter 10.4).
+ */
+const OBSOLETE_MARKERS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
+  { label: 'Flash embed', pattern: /<(embed|object)[^>]+(application\/x-shockwave-flash|\.swf)/i },
+  { label: '<marquee> tag', pattern: /<marquee\b/i },
+  { label: '<blink> tag', pattern: /<blink\b/i },
+  { label: 'presentational <font> tag', pattern: /<font\b/i },
+  { label: '"best viewed in" notice', pattern: /best\s+viewed\s+(in|with)/i },
+  { label: 'FrontPage generator tag', pattern: /content=["'][^"']*FrontPage/i },
+]
+
+function extractObsoleteSignals(html: string): { obsoleteTechnologyMarkers: string[]; latestCopyrightYear: number | null } {
+  const obsoleteTechnologyMarkers = OBSOLETE_MARKERS.filter((marker) => marker.pattern.test(html)).map((marker) => marker.label)
+
+  // Years adjacent to a copyright notice only — a bare four-digit number
+  // anywhere on the page is not a copyright date.
+  const years: number[] = []
+  const pattern = /(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–—]\s*)?(\d{4})/gi
+  let match = pattern.exec(html)
+  while (match !== null) {
+    const year = Number(match[1])
+    if (year >= 1990 && year <= 2100) years.push(year)
+    match = pattern.exec(html)
+  }
+
+  return { obsoleteTechnologyMarkers, latestCopyrightYear: years.length > 0 ? Math.max(...years) : null }
 }
 
 function extractTimeToInteractiveSeconds(payload: unknown): number | null {
@@ -116,6 +154,7 @@ export async function runWebOpportunityMeasurement(input: {
   // Requires no network call: the listed URL's own scheme is already known.
   const servesHttps: Measured<boolean> = { status: 'measured', value: parsedUrl.protocol === 'https:' }
 
+  let obsoleteSignals: { obsoleteTechnologyMarkers: string[]; latestCopyrightYear: number | null } | null = null
   let telLinkFound: Measured<{ found: boolean; snapshotId: string }> = servesHttps.value
     ? { status: 'unmeasured', reason: 'Website inspection did not complete.' }
     : { status: 'unmeasured', reason: 'Site is not served over https; contact-path inspection requires an https URL.' }
@@ -131,6 +170,7 @@ export async function runWebOpportunityMeasurement(input: {
         payload: { statusCode: inspection.statusCode, contentType: inspection.contentType, textExcerpt: inspection.textExcerpt, truncated: inspection.truncated },
       })
       telLinkFound = { status: 'measured', value: { found: /href\s*=\s*["']tel:/i.test(inspection.textExcerpt), snapshotId: stored.id } }
+      obsoleteSignals = extractObsoleteSignals(inspection.textExcerpt)
     } catch (error) {
       telLinkFound = { status: 'unmeasured', reason: error instanceof Error ? error.message : String(error) }
     }
@@ -138,5 +178,5 @@ export async function runWebOpportunityMeasurement(input: {
 
   if (!retrievedAt) retrievedAt = now().toISOString()
 
-  return { status: 'completed', retrievedAt, performance, mobileAudits, servesHttps, telLinkFound }
+  return { status: 'completed', retrievedAt, performance, mobileAudits, servesHttps, telLinkFound, obsoleteSignals }
 }

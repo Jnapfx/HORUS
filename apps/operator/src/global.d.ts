@@ -91,6 +91,7 @@ declare global {
               status: 'completed'
               retrievedAt: string
               mobileAudits: { lighthouseResult: { audits: Record<string, unknown> } } | null
+          obsoleteSignals: { obsoleteTechnologyMarkers: string[]; latestCopyrightYear: number | null } | null
           performance: { status: 'measured'; value: { timeToInteractiveSeconds: number; snapshotId: string } } | { status: 'unmeasured'; reason: string }
               servesHttps: { status: 'measured'; value: boolean } | { status: 'unmeasured'; reason: string }
               telLinkFound: { status: 'measured'; value: { found: boolean; snapshotId: string } } | { status: 'unmeasured'; reason: string }
