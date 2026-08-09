@@ -199,3 +199,84 @@ describe('DEC-093 — the demonstration preview carries its safety marks into th
     expect(frame.getAttribute('sandbox')).toBe('')
   })
 })
+
+describe('DEC-095 — refreshing stale evidence, and being shown what changed', () => {
+  const NOW2 = new Date('2026-08-09T12:00:00.000Z')
+  const stale = new Date(NOW2.getTime() - 120 * 86_400_000).toISOString()
+
+  const renderWithSearch = () =>
+    render(
+      <ProspectRecord
+        id="data-1"
+        candidates={[candidate()]}
+        scores={{}}
+        audits={{}}
+        homeBase={null}
+        evidenceRetrievedAt={stale}
+        searchContext={{ category: 'landscaping', city: 'Norwalk, Connecticut', maxExamined: 10 }}
+        onClear={() => {}}
+        now={NOW2}
+      />,
+    )
+
+  afterEach(() => { delete (window as unknown as { horus?: unknown }).horus })
+
+  it('offers a refresh, and says plainly that it costs a credit', () => {
+    renderWithSearch()
+    expect(screen.getByRole('button', { name: /refresh this business.*spends a serpapi credit/i })).toBeTruthy()
+  })
+
+  it('shows a fallen rating rather than silently replacing it', async () => {
+    // Charter 15's own example. The whole point of the refresh is that this
+    // reaches the operator before contact, not after.
+    const run = vi.fn().mockResolvedValue({
+      status: 'completed', retrievedAt: '2026-08-09T12:00:00.000Z', candidates: [
+        { dataId: 'data-1', name: 'Test Landscaping', rating: 3.9, reviewCount: 120,
+          address: '1 Example Street', phone: '+1 555 0100', website: 'https://example.com' },
+      ],
+    })
+    ;(window as unknown as { horus: unknown }).horus = { discovery: { run } }
+    renderWithSearch()
+    fireEvent.click(screen.getByRole('button', { name: /refresh this business/i }))
+    expect(await screen.findByText(/the published rating fell from 4.8 to 3.9/i)).toBeTruthy()
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({ forceRefresh: true }))
+  })
+
+  it('says so when nothing changed', async () => {
+    const run = vi.fn().mockResolvedValue({
+      status: 'completed', retrievedAt: '2026-08-09T12:00:00.000Z', candidates: [
+        { dataId: 'data-1', name: 'Test Landscaping', rating: 4.8, reviewCount: 120,
+          address: '1 Example Street', phone: '+1 555 0100', website: 'https://example.com' },
+      ],
+    })
+    ;(window as unknown as { horus: unknown }).horus = { discovery: { run } }
+    renderWithSearch()
+    fireEvent.click(screen.getByRole('button', { name: /refresh this business/i }))
+    expect(await screen.findByText(/nothing changed/i)).toBeTruthy()
+  })
+
+  it('reports a business that has vanished from its own category search', async () => {
+    const run = vi.fn().mockResolvedValue({
+      status: 'completed', retrievedAt: '2026-08-09T12:00:00.000Z', candidates: [],
+    })
+    ;(window as unknown as { horus: unknown }).horus = { discovery: { run } }
+    renderWithSearch()
+    fireEvent.click(screen.getByRole('button', { name: /refresh this business/i }))
+    expect(await screen.findByText(/no longer appears in a fresh search/i)).toBeTruthy()
+  })
+
+  it('warns that the displayed scores are still the old ones', async () => {
+    // A refresh that changed the evidence but left a stale score on screen
+    // would be worse than not refreshing at all.
+    const run = vi.fn().mockResolvedValue({
+      status: 'completed', retrievedAt: '2026-08-09T12:00:00.000Z', candidates: [
+        { dataId: 'data-1', name: 'Test Landscaping', rating: 3.9, reviewCount: 120,
+          address: '1 Example Street', phone: '+1 555 0100', website: 'https://example.com' },
+      ],
+    })
+    ;(window as unknown as { horus: unknown }).horus = { discovery: { run } }
+    renderWithSearch()
+    fireEvent.click(screen.getByRole('button', { name: /refresh this business/i }))
+    expect(await screen.findByText(/have not been recalculated/i)).toBeTruthy()
+  })
+})

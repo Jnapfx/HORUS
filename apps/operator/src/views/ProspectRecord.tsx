@@ -5,6 +5,7 @@ import { assessProximity, type Coordinates } from '../domain/proximity'
 import { buildDemonstrationSite } from '../domain/demonstration'
 import { buildOutreachDraft } from '../domain/outreach'
 import { assessOldest } from '../domain/freshness'
+import { compareListingEvidence, type EvidenceComparison, type ListingEvidence } from '../domain/evidence-diff'
 import type { CandidateSummary } from './types'
 
 /**
@@ -23,6 +24,7 @@ export function ProspectRecord({
   audits,
   homeBase,
   evidenceRetrievedAt,
+  searchContext,
   onClear,
   now,
 }: {
@@ -33,6 +35,8 @@ export function ProspectRecord({
   homeBase: Coordinates | null | undefined
   /** When the listing evidence behind this prospect was retrieved (DEC-089). */
   evidenceRetrievedAt: string | null | undefined
+  /** What to re-search when refreshing this business's public data (DEC-095). */
+  searchContext?: { category: string; city: string; maxExamined: number }
   onClear: () => void
   /** Injected only by tests; freshness is deliberately clock-dependent. */
   now?: Date
@@ -48,6 +52,13 @@ export function ProspectRecord({
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<
     { status: 'published'; url: string | null; projectName: string; publishedAt: string; deployOutput: string } | { status: 'failed'; reason: string; detail: string } | null
+  >(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshResult, setRefreshResult] = useState<
+    { status: 'compared'; comparison: EvidenceComparison; retrievedAt: string }
+    | { status: 'not_found' }
+    | { status: 'failed'; detail: string }
+    | null
   >(null)
   const [removeConfirmation, setRemoveConfirmation] = useState('')
   const [removing, setRemoving] = useState(false)
@@ -80,6 +91,43 @@ export function ProspectRecord({
     retrievedAt: [evidenceRetrievedAt, score?.retrievedAt].filter((value) => value !== undefined),
     now: now ?? new Date(),
   })
+
+  // DEC-095. Charter 15's other half: the freshness gate blocks, and this is
+  // how the operator clears it. Spends a real SerpApi credit, so it is never
+  // automatic — and it does not silently replace the old figures, because
+  // charter 15's whole point is that a rating which fell while the operator
+  // was deciding must be *seen*, not quietly corrected.
+  const refreshEvidence = () => {
+    if (!searchContext) return
+    setRefreshing(true)
+    setRefreshResult(null)
+    const before: ListingEvidence = {
+      name: candidate.name ?? null, rating: candidate.rating ?? null, reviewCount: candidate.reviewCount ?? null,
+      address: candidate.address ?? null, phone: candidate.phone ?? null, website: candidate.website ?? null,
+    }
+    window.horus?.discovery
+      .run({ ...searchContext, forceRefresh: true })
+      .then((outcome) => {
+        if (outcome.status !== 'completed') {
+          setRefreshResult({ status: 'failed', detail: 'detail' in outcome ? outcome.detail : 'The refresh was rejected.' })
+          return
+        }
+        const fresh = outcome.candidates.find((entry) => entry.dataId === candidate.dataId)
+        if (!fresh) {
+          // The business no longer appears in its own category search. That is
+          // a finding, not an error, and it is not this screen's job to
+          // interpret it (DEC-008).
+          setRefreshResult({ status: 'not_found' })
+          return
+        }
+        const after: ListingEvidence = {
+          name: fresh.name ?? null, rating: fresh.rating ?? null, reviewCount: fresh.reviewCount ?? null,
+          address: fresh.address ?? null, phone: fresh.phone ?? null, website: fresh.website ?? null,
+        }
+        setRefreshResult({ status: 'compared', comparison: compareListingEvidence(before, after), retrievedAt: outcome.retrievedAt })
+      })
+      .finally(() => setRefreshing(false))
+  }
 
   const captureScreenshot = () => {
     if (!candidate.website) return
@@ -178,6 +226,45 @@ export function ProspectRecord({
       <p className={freshness.blocksContact ? 'gate' : 'notice'}>
         <strong>Evidence freshness: {freshness.status}.</strong> {freshness.evidence}
       </p>
+
+      {searchContext && (
+        <div className="button-row">
+          <button className="secondary" onClick={refreshEvidence} disabled={refreshing}>
+            {refreshing ? 'Refreshing…' : "Refresh this business's public data (spends a SerpApi credit)"}
+          </button>
+        </div>
+      )}
+      {refreshResult?.status === 'failed' && (
+        <div className="error" role="alert"><strong>Refresh failed.</strong><p>{refreshResult.detail}</p></div>
+      )}
+      {refreshResult?.status === 'not_found' && (
+        <p className="gate">
+          This business no longer appears in a fresh search of its own category and city. That may mean the listing
+          was removed, renamed, or reclassified — it is not something HORUS can interpret for you, and it is worth
+          resolving before any contact.
+        </p>
+      )}
+      {refreshResult?.status === 'compared' && (
+        <div className={refreshResult.comparison.hasMaterialChange ? 'gate' : 'success'}>
+          <strong>
+            Refreshed {refreshResult.retrievedAt}.{' '}
+            {refreshResult.comparison.unchanged
+              ? 'Nothing changed.'
+              : `${refreshResult.comparison.changes.length} change(s)${refreshResult.comparison.hasMaterialChange ? ', some worth reading before contact' : ''}.`}
+          </strong>
+          {!refreshResult.comparison.unchanged && (
+            <ul className="checklist">
+              {refreshResult.comparison.changes.map((change) => (
+                <li key={change.field}>{change.materialForContact ? '! ' : '· '}{change.note}</li>
+              ))}
+            </ul>
+          )}
+          <p className="notice">
+            The scores above were computed from the earlier retrieval and have not been recalculated. Rescore this
+            candidate to apply the refreshed evidence.
+          </p>
+        </div>
+      )}
 
       {score ? (
         <>
