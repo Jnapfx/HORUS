@@ -117,6 +117,11 @@ declare global {
           | { status: 'failed'; reason: string; detail: string }
         >
       }
+      /** DEC-094. Durable operator judgment on charter 9.5's judgment gates; read back as a projection, never a second stored copy. */
+      judgment: {
+        record: (input: { listingId: string; judgment: unknown }) => Promise<{ status: 'recorded'; occurredAt: string }>
+        list: () => Promise<readonly { aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }[]>
+      }
       /** DEC-081. The second DEC-004 gate — opens a real Gmail compose window, no send capability. */
       outreach: {
         openGmailHandoff: (input: { approvalId: string; to: string; subject: string; body: string; dataId: string | null }) => Promise<

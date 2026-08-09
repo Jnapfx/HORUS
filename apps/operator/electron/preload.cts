@@ -56,6 +56,11 @@ contextBridge.exposeInMainWorld('horus', {
     /** DEC-081. Records the operator's own declaration that they sent the message — charter 17.3, never inferred by HORUS. */
     declareSent: (input: { dataId: string | null; to: string }) => ipcRenderer.invoke('outreach:declare-sent', input),
   },
+  /** DEC-094. Durable operator judgment on charter 9.5's G4/G5/G6 gates. */
+  judgment: {
+    record: (input: { listingId: string; judgment: unknown }) => ipcRenderer.invoke('judgment:record', input),
+    list: () => ipcRenderer.invoke('judgment:list'),
+  },
   tracker: {
     /** DEC-082. Records exactly what the operator typed — HORUS never schedules or infers a follow-up (DEC-030). */
     scheduleFollowUp: (input: { dataId: string | null; to: string | null; date: string; note: string }) => ipcRenderer.invoke('tracker:schedule-follow-up', input),

@@ -319,6 +319,25 @@ app.whenReady().then(() => {
     })
     return { status: 'recorded' as const, occurredAt }
   })
+  // DEC-094. Charter 14: the operator's rationale belongs in the record.
+  // DEC-091 left the judgment in component state, where closing the app lost
+  // it — and a judgment is the one input to a score that cannot be recomputed
+  // from retained evidence, because nothing can reconstruct what the operator
+  // concluded from reading the reviews. Written as a durable event and read
+  // back as a projection, the same shape DEC-082's tracker uses; a later
+  // judgment supersedes an earlier one without deleting it.
+  ipcMain.handle('judgment:record', (_event, input: { listingId: string; judgment: unknown }) => {
+    const occurredAt = new Date().toISOString()
+    store.appendEvent({
+      aggregateType: 'prospect',
+      aggregateId: input.listingId,
+      eventType: 'prospect.judgment_recorded',
+      payload: input.judgment,
+      occurredAt,
+    })
+    return { status: 'recorded' as const, occurredAt }
+  })
+  ipcMain.handle('judgment:list', () => store.listEvents(['prospect']))
   ipcMain.handle('tracker:list-events', () => store.listEvents(['demonstration', 'outreach', 'follow_up']))
   ipcMain.handle('workflow:representative:get', () => store.getWorkflowState('representative-local-v1'))
   ipcMain.handle('workflow:representative:save', (_event, state: unknown) => {
