@@ -338,6 +338,21 @@ app.whenReady().then(() => {
     return { status: 'recorded' as const, occurredAt }
   })
   ipcMain.handle('judgment:list', () => store.listEvents(['prospect']))
+  // DEC-096. DEC-031 exempts an engaged prospect from the 60-day removal
+  // prompt, but nothing could record that a business had responded. HORUS
+  // cannot observe a reply any more than it can observe a send (DEC-041,
+  // charter 17.3), so this is an operator declaration, like `declare-sent`.
+  ipcMain.handle('outreach:record-response', (_event, input: { dataId: string | null; note: string }) => {
+    const occurredAt = new Date().toISOString()
+    store.appendEvent({
+      aggregateType: 'outreach',
+      aggregateId: input.dataId ?? 'unknown',
+      eventType: 'outreach.response_recorded',
+      payload: { note: input.note },
+      occurredAt,
+    })
+    return { status: 'recorded' as const, occurredAt }
+  })
   ipcMain.handle('tracker:list-events', () => store.listEvents(['demonstration', 'outreach', 'follow_up']))
   ipcMain.handle('workflow:representative:get', () => store.getWorkflowState('representative-local-v1'))
   ipcMain.handle('workflow:representative:save', (_event, state: unknown) => {
