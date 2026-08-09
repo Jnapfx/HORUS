@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { buildReputationScore, type ReputationScore } from '../domain/reputation-scoring'
 import { summarizeReviewHistory } from '../domain/review-history'
 import { buildWebOpportunityAudit, type WebOpportunityAudit } from '../domain/web-opportunity-audit'
+import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import {
   emptyJudgment,
   findJudgmentProblems,
@@ -34,6 +35,25 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
   // for, rather than spending another SerpApi credit (DEC-020, DEC-032).
   const [retrieved, setRetrieved] = useState<{ summary: ReturnType<typeof summarizeReviewHistory>; retrievedAt: string } | null>(null)
   const [judgment, setJudgment] = useState<OperatorJudgmentDraft>(emptyJudgment)
+  const [recorded, setRecorded] = useState<{ occurredAt: string; revision: number } | null>(null)
+  const [recording, setRecording] = useState(false)
+
+  // DEC-094. Charter 14: a judgment recorded in a previous session is part of
+  // the record and must come back with it. Restored before any scoring, so a
+  // reopened candidate shows what the operator already concluded rather than a
+  // blank form that would silently re-open the gates.
+  useEffect(() => {
+    if (!candidate.dataId) return
+    let cancelled = false
+    void window.horus?.judgment.list().then((events) => {
+      if (cancelled) return
+      const prior = findRecordedJudgment(events as JudgmentEvent[], candidate.dataId!)
+      if (!prior) return
+      setJudgment(prior.judgment)
+      setRecorded({ occurredAt: prior.recordedAt, revision: prior.revision })
+    })
+    return () => { cancelled = true }
+  }, [candidate.dataId])
 
   const run = () => {
     if (!candidate.dataId) return
@@ -160,6 +180,31 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
               </div>
             )
           })}
+          {/* DEC-094. Recording is a deliberate act with its own control, not a
+              side effect of typing — the same shape as every other consequential
+              action in this application. */}
+          <div className="button-row">
+            <button
+              className="secondary"
+              disabled={recording || findJudgmentProblems(judgment).length > 0}
+              onClick={() => {
+                if (!candidate.dataId) return
+                setRecording(true)
+                window.horus?.judgment
+                  .record({ listingId: candidate.dataId, judgment })
+                  .then((result) => setRecorded({ occurredAt: result.occurredAt, revision: (recorded?.revision ?? 0) + 1 }))
+                  .finally(() => setRecording(false))
+              }}
+            >
+              {recording ? 'Recording…' : 'Record this judgment'}
+            </button>
+          </div>
+          {recorded && (
+            <p className="success">
+              Recorded {recorded.occurredAt}
+              {recorded.revision > 1 ? ` — revision ${recorded.revision}; earlier judgments stay in the log` : ''}.
+            </p>
+          )}
           {findJudgmentProblems(judgment).map((problem) => (
             <p key={problem.gate} className="control-hint">{problem.problem}</p>
           ))}
