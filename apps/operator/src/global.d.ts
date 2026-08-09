@@ -67,6 +67,12 @@ declare global {
                 website: string | null
                 phone: string | null
                 coordinates: { latitude: number; longitude: number } | null
+            serviceOptions: readonly string[]
+            highlights: readonly string[]
+            categories: readonly string[]
+            operatingHours: Readonly<Record<string, string>> | null
+            priceRange: string | null
+            photoUrl: string | null
               }>
               /** DEC-077. True when served from a prior cached search — no credit spent. */
               fromCache: boolean
@@ -118,6 +124,18 @@ declare global {
           | { status: 'removed'; projectName: string; removedAt: string; output: string }
           | { status: 'failed'; reason: string; detail: string }
         >
+      }
+      /** DEC-107. Rebuilds the last working session from retained evidence. Spends nothing. */
+      session: {
+        restore: () => Promise<{
+          discovery: {
+            request: unknown
+            retrievedAt: string
+            snapshotId: string
+            candidates: Extract<Awaited<ReturnType<Window['horus']['discovery']['run']>>, { status: 'completed' }>['candidates']
+          } | null
+          reviewHistories: Record<string, { reviews: unknown[]; retrievedAt: string; paginationExhausted: boolean }>
+        }>
       }
       /** DEC-094. Durable operator judgment on charter 9.5's judgment gates; read back as a projection, never a second stored copy. */
       judgment: {

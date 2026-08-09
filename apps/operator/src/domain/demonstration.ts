@@ -38,6 +38,17 @@ export type DemonstrationBusinessInput = {
   /** Google's own aggregate rating, from the same verified listing data as everything else here. */
   rating: number | null
   reviewCount: number | null
+  /**
+   * DEC-106. Published listing attributes, all optional. Every one is content
+   * the business itself put on its own Google listing; nothing here is
+   * inferred, and an absent field omits its section rather than inviting a
+   * guess (DEC-005, FUNCTIONAL_DESIGN §8.1).
+   */
+  serviceOptions?: readonly string[]
+  highlights?: readonly string[]
+  operatingHours?: Readonly<Record<string, string>> | null
+  priceRange?: string | null
+  photoUrl?: string | null
 }
 
 export type DemonstrationSite = {
@@ -89,6 +100,53 @@ export function buildDemonstrationSite(input: { business: DemonstrationBusinessI
     : ''
   if (!hasWebsite) missing.push('website')
 
+  /**
+   * DEC-106. FUNCTIONAL_DESIGN §8.1's services, hours and imagery sections,
+   * built from the listing's own published attributes. Every one of these was
+   * already retrieved and thrown away, which is why a generated demonstration
+   * used to be the business's contact card.
+   *
+   * Each block omits itself entirely when its evidence is absent — §8.1's own
+   * rule ("omit the block when support is absent"), and DEC-005's: a gap stays
+   * empty rather than being filled.
+   */
+  const services = business.serviceOptions ?? []
+  const highlights = business.highlights ?? []
+  const servicesBlock = services.length + highlights.length > 0
+    ? `<section>
+      <h2>What ${name} offers</h2>
+      <ul class="tags">${[...services, ...highlights].map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      <p class="sourced">Listed publicly by the business on its own Google listing.</p>
+    </section>`
+    : ''
+  if (services.length + highlights.length === 0) missing.push('services')
+
+  const hours = business.operatingHours ?? null
+  const hoursBlock = hours
+    ? `<section>
+      <h2>Hours</h2>
+      <table class="hours">${Object.entries(hours).map(([day, value]) =>
+        `<tr><th>${escapeHtml(day.charAt(0).toUpperCase() + day.slice(1))}</th><td>${escapeHtml(value)}</td></tr>`).join('')}</table>
+      <p class="sourced">Published hours from the business's own Google listing.</p>
+    </section>`
+    : ''
+  if (!hours) missing.push('hours')
+
+  // DEC-025. The listing's own photo, labelled as what it is. Never a stock
+  // image, and never presented as the business's own work without saying where
+  // it came from.
+  const photoBlock = business.photoUrl && business.photoUrl.trim()
+    ? `<figure class="photo">
+      <img src="${escapeHtml(business.photoUrl.trim())}" alt="Photo published on ${name}'s Google listing" loading="lazy">
+      <figcaption>Photo from ${name}'s own public Google listing.</figcaption>
+    </figure>`
+    : `<div class="placeholder-area">[Business photography would appear here — none is published on the current listing]</div>`
+  if (!business.photoUrl) missing.push('photo')
+
+  const priceBlock = business.priceRange && business.priceRange.trim()
+    ? `<p class="price">Typical spend: ${escapeHtml(business.priceRange.trim())} <span class="sourced">(published range)</span></p>`
+    : ''
+
   const hasReputation = business.rating !== null && business.reviewCount !== null
   const reputationBlock = hasReputation
     ? `<p class="reputation">${business.rating!.toFixed(1)}&#9733; from ${business.reviewCount} Google reviews</p>`
@@ -114,6 +172,17 @@ export function buildDemonstrationSite(input: { business: DemonstrationBusinessI
   section { background: #fff; border: 1px solid #e2e5ec; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
   .cta { display: inline-block; background: #1c2230; color: #fff; text-decoration: none; padding: 0.6rem 1.2rem; border-radius: 6px; }
   .placeholder { color: #9aa1af; font-style: italic; }
+  .tags { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 0.75rem; }
+  .tags li { background: #eef1f6; border: 1px solid #dfe3ea; border-radius: 999px; padding: 0.35rem 0.75rem; font-size: 0.92rem; }
+  .sourced { color: #6b7280; font-size: 0.82rem; margin: 0; }
+  .hours { border-collapse: collapse; width: 100%; max-width: 380px; margin-bottom: 0.75rem; }
+  .hours th { text-align: left; font-weight: 600; padding: 0.3rem 1rem 0.3rem 0; white-space: nowrap; }
+  .hours td { padding: 0.3rem 0; color: #40464f; }
+  .photo { margin: 0 0 1.5rem; }
+  .photo img { width: 100%; max-height: 340px; object-fit: cover; border-radius: 8px; display: block; }
+  .photo figcaption { color: #6b7280; font-size: 0.82rem; margin-top: 0.5rem; text-align: center; }
+  .placeholder-area { border: 1px dashed #c3c9d4; border-radius: 8px; padding: 2.5rem 1rem; text-align: center; color: #9aa1af; font-style: italic; margin-bottom: 1.5rem; }
+  .price { color: #40464f; margin: 0.75rem 0 0; }
   footer { text-align: center; padding: 1.5rem; color: #9aa1af; font-size: 0.8rem; }
 </style>
 </head>
@@ -123,8 +192,12 @@ export function buildDemonstrationSite(input: { business: DemonstrationBusinessI
     <h1>${name}</h1>
     <p class="category">${category}</p>
     ${reputationBlock}
+    ${priceBlock}
   </header>
   <main>
+    ${photoBlock}
+    ${servicesBlock}
+    ${hoursBlock}
     <section>
       <h2>Contact</h2>
       <p>${address}</p>
