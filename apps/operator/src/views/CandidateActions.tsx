@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react'
-import { buildReputationScore, type ReputationScore } from '../domain/reputation-scoring'
+import type { ReputationScore } from '../domain/reputation-scoring'
 import { summarizeReviewHistory } from '../domain/review-history'
-import { buildWebOpportunityAudit, type WebOpportunityAudit } from '../domain/web-opportunity-audit'
-import { assessMobileResponsiveness } from '../domain/mobile-responsiveness'
-import { scanObsoleteAppearance } from '../domain/obsolete-appearance'
+import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import {
   emptyJudgment,
   findJudgmentProblems,
   isJudgmentComplete,
   JUDGMENT_GATES,
-  resolveJudgment,
   type OperatorJudgmentDraft,
 } from '../domain/operator-judgment'
-import type { CandidateSummary, ReviewHistoryResult, WebOpportunityMeasurementResult } from './types'
+import { auditCandidateFromMeasurement, scoreCandidateFromHistory } from './candidate-scoring'
+import type { CandidateSummary, RestoredReviewHistory, RestoredWebOpportunityMeasurement, ReviewHistoryResult, WebOpportunityMeasurementResult } from './types'
 
 /**
  * DEC-071, extended by DEC-091. Per candidate: retrieves real review history
@@ -28,7 +26,26 @@ import type { CandidateSummary, ReviewHistoryResult, WebOpportunityMeasurementRe
  * the already-retrieved history — no further retrieval, no further credit —
  * so the operator, who is the missing gate, can now actually be it.
  */
-export function CandidateScoreAction({ candidate, onScored }: { candidate: CandidateSummary; onScored?: (score: ReputationScore) => void }) {
+export function CandidateScoreAction({ candidate, retained, onScored, onQualified }: {
+  candidate: CandidateSummary
+  /**
+   * DEC-108. This listing's review pages, already retained and read back by
+   * `session:restore`. Present means the operator has scored this candidate
+   * before — so it is shown as scored, with its reviews and its judgment,
+   * rather than as a blank row above a button offering to spend credits on
+   * evidence that is already on disk.
+   */
+  retained?: RestoredReviewHistory | null
+  onScored?: (score: ReputationScore) => void
+  /**
+   * DEC-113. Fired once, the moment the operator's own recorded judgment
+   * (charter 9.5, DEC-008) is what makes this candidate `qualified`. Never
+   * fired by a computed score alone — only after "Record this judgment" has
+   * actually written it, since that button press is the operator's real
+   * decision, not a side effect of typing into a select box.
+   */
+  onQualified?: (dataId: string) => void
+}) {
   const [running, setRunning] = useState(false)
   const [historyResult, setHistoryResult] = useState<ReviewHistoryResult | null>(null)
   const [score, setScore] = useState<ReputationScore | null>(null)
@@ -45,34 +62,66 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
   const [judgment, setJudgment] = useState<OperatorJudgmentDraft>(emptyJudgment)
   const [recorded, setRecorded] = useState<{ occurredAt: string; revision: number } | null>(null)
   const [recording, setRecording] = useState(false)
+  const [servedFromEvidence, setServedFromEvidence] = useState(false)
 
-  // DEC-094. Charter 14: a judgment recorded in a previous session is part of
-  // the record and must come back with it. Restored before any scoring, so a
-  // reopened candidate shows what the operator already concluded rather than a
-  // blank form that would silently re-open the gates.
+  // DEC-094, extended by DEC-108. Charter 14: a judgment recorded in a
+  // previous session is part of the record and must come back with it — and so
+  // must the score that judgment produced. The two are restored together, in
+  // one effect, because scoring without the judgment would briefly show the
+  // candidate as unqualified for a reason that is not true.
   useEffect(() => {
     if (!candidate.dataId) return
     let cancelled = false
     void window.horus?.judgment.list().then((events) => {
       if (cancelled) return
       const prior = findRecordedJudgment(events as JudgmentEvent[], candidate.dataId!)
-      if (!prior) return
-      setJudgment(prior.judgment)
-      setRecorded({ occurredAt: prior.recordedAt, revision: prior.revision })
+      const draft = prior?.judgment ?? emptyJudgment()
+      if (prior) {
+        setJudgment(draft)
+        setRecorded({ occurredAt: prior.recordedAt, revision: prior.revision })
+      }
+      if (!retained || retained.reviews.length === 0) return
+      const summary = summarizeReviewHistory({
+        reviews: retained.reviews,
+        retrievedAt: retained.retrievedAt,
+        paginationExhausted: retained.paginationExhausted,
+      })
+      setRetrieved({
+        summary,
+        retrievedAt: retained.retrievedAt,
+        reviews: retained.reviews,
+        paginationExhausted: retained.paginationExhausted,
+        publishedCount: candidate.reviewCount,
+      })
+      setServedFromEvidence(true)
+      // Recomputed from evidence rather than restored from a stored copy —
+      // charter 14's own model, and the reason DEC-107 chose it.
+      try {
+        const computed = scoreWith(retained.reviews, retained.retrievedAt, retained.paginationExhausted, draft)
+        setScore(computed)
+        onScored?.(computed)
+      } catch (problem) {
+        setError(problem instanceof Error ? problem.message : 'The recorded judgment could not be applied.')
+      }
     })
     return () => { cancelled = true }
-  }, [candidate.dataId])
+    // `onScored` is an inline callback from the parent and would re-run this
+    // on every render; the candidate and its retained evidence are what
+    // actually determine the result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate.dataId, retained])
 
-  const run = () => {
+  const run = (forceRefresh: boolean) => {
     if (!candidate.dataId) return
     setRunning(true)
     setError(null)
     setScore(null)
     setHistoryResult(null)
-    window.horus?.discovery.fetchReviewHistory({ dataId: candidate.dataId })
+    window.horus?.discovery.fetchReviewHistory({ dataId: candidate.dataId, forceRefresh })
       .then((outcome) => {
         setHistoryResult(outcome as ReviewHistoryResult)
         if (outcome.status !== 'completed') return
+        setServedFromEvidence(outcome.fromCache)
         const summary = summarizeReviewHistory({
           reviews: outcome.reviews,
           retrievedAt: outcome.retrievedAt,
@@ -85,7 +134,7 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
           paginationExhausted: outcome.paginationExhausted,
           publishedCount: candidate.reviewCount,
         })
-        const computed = scoreWith(summary, outcome.retrievedAt, judgment)
+        const computed = scoreWith(outcome.reviews, outcome.retrievedAt, outcome.paginationExhausted, judgment)
         setScore(computed)
         onScored?.(computed)
       })
@@ -99,38 +148,22 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
    * than downgrading it, so a half-finished judgment surfaces as an error
    * instead of a plausible-looking score.
    */
+  // DEC-110. Delegates to the shared `candidate-scoring.ts` module also used
+  // by the bulk pre-screen in `OperatorWorkspace`, so the two paths cannot
+  // silently disagree about how a score is built from a review history — the
+  // same class of defect DEC-108 found and fixed for session restore.
+  //
+  // Takes `reviews`/`paginationExhausted` explicitly rather than reading them
+  // off `retrieved` state: two of this function's three call sites run
+  // before `setRetrieved` has committed, so closing over that state here
+  // would silently score against the *previous* retrieval.
   function scoreWith(
-    summary: ReturnType<typeof summarizeReviewHistory>,
+    reviews: readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[],
     retrievedAt: string,
+    paginationExhausted: boolean,
     draft: OperatorJudgmentDraft,
   ): ReputationScore {
-    const assessed = resolveJudgment(draft)
-    return buildReputationScore({
-      listingId: candidate.dataId!,
-      retrievedAt,
-      rating: candidate.rating === null ? { status: 'unmeasured', reason: 'No rating on the discovery listing.' } : { status: 'measured', value: candidate.rating },
-      reviewCount: candidate.reviewCount === null ? { status: 'unmeasured', reason: 'No review count on the discovery listing.' } : { status: 'measured', value: candidate.reviewCount },
-      recentActivity: {
-        reviewsLast90Days: { status: 'measured', value: summary.reviewsLast90Days },
-        reviewsLast365Days: { status: 'measured', value: summary.reviewsLast365Days },
-        daysSinceLatestReview: summary.daysSinceLatestReview === null
-          ? { status: 'unmeasured', reason: 'No reviews were retrieved.' }
-          : { status: 'measured', value: summary.daysSinceLatestReview },
-      },
-      recentConsistency: summary.recentConsistency
-        ? { status: 'measured', value: summary.recentConsistency }
-        : { status: 'unmeasured', reason: 'Fewer than 5 trailing-year reviews were retrieved.' },
-      // DEC-104. The retrieved reviews already prove a minimum history span,
-      // and it was being discarded — every candidate lost up to 5 points for
-      // evidence that had been retrieved and paid for.
-      longevity: summary.retrievedHistorySpanYears === null
-        ? { status: 'unmeasured', reason: 'Fewer than two dated reviews were retrieved, so no span can be established.' }
-        : { status: 'measured', value: { historySpanYears: summary.retrievedHistorySpanYears } },
-      complaintPattern: assessed.complaintPattern,
-      operationalStatus: assessed.operationalStatus,
-      listingIdentity: assessed.listingIdentity,
-      market: { status: 'within_target', evidence: 'Discovered via a search already scoped to the target city; not independently re-verified.' },
-    })
+    return scoreCandidateFromHistory(candidate, { retrievedAt, reviews, paginationExhausted }, draft)
   }
 
   /** Rescores against retained evidence. No retrieval, no credit. */
@@ -138,7 +171,7 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
     setJudgment(next)
     if (!retrieved) return
     try {
-      const computed = scoreWith(retrieved.summary, retrieved.retrievedAt, next)
+      const computed = scoreWith(retrieved.reviews, retrieved.retrievedAt, retrieved.paginationExhausted, next)
       setScore(computed)
       onScored?.(computed)
       setError(null)
@@ -152,9 +185,28 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
 
   return (
     <div className="candidate-score">
-      <button className="secondary" onClick={run} disabled={running || !candidate.dataId}>
-        {running ? 'Retrieving review history…' : 'Fetch review history & score (spends further SerpApi credits)'}
+      {/* DEC-108. The label states the true cost of the press. Review pages
+          already retained are served for nothing (DEC-020: once stored, they
+          can be scored any number of times for free), so a candidate that has
+          been scored before must not be offered a button that says it spends.
+          Retrieving again is still available, and still says what it costs. */}
+      <button className="secondary" onClick={() => run(false)} disabled={running || !candidate.dataId}>
+        {running
+          ? 'Reading review history…'
+          : retrieved
+            ? 'Rescore from retained reviews (no credit)'
+            : 'Fetch review history & score (spends further SerpApi credits)'}
       </button>
+      {retrieved && (
+        <button className="secondary" onClick={() => run(true)} disabled={running || !candidate.dataId}>
+          Retrieve fresh reviews (spends further SerpApi credits)
+        </button>
+      )}
+      {servedFromEvidence && (
+        <p className="success">
+          Served from review pages already retained, retrieved {retrieved?.retrievedAt ?? ''} — no SerpApi credit spent.
+        </p>
+      )}
       {!candidate.dataId && <p className="notice">No data_id on this listing; review history cannot be retrieved.</p>}
       {error && <div className="error" role="alert"><strong>Rejected.</strong><p>{error}</p></div>}
       {historyResult?.status === 'failed' && <div className="error" role="alert"><strong>Retrieval failed: {historyResult.reason}</strong><p>{historyResult.detail}</p></div>}
@@ -248,7 +300,16 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
                 setRecording(true)
                 window.horus?.judgment
                   .record({ listingId: candidate.dataId, judgment })
-                  .then((result) => setRecorded({ occurredAt: result.occurredAt, revision: (recorded?.revision ?? 0) + 1 }))
+                  .then((result) => {
+                    setRecorded({ occurredAt: result.occurredAt, revision: (recorded?.revision ?? 0) + 1 })
+                    // DEC-113. `score` here is the one already recomputed
+                    // in-browser from this exact judgment (`applyJudgment`,
+                    // above) — the write above just makes it durable. Firing
+                    // on that recompute would fire on every keystroke; this
+                    // only fires once the operator has actually pressed the
+                    // button that records it.
+                    if (score?.qualified && candidate.dataId) onQualified?.(candidate.dataId)
+                  })
                   .finally(() => setRecording(false))
               }}
             >
@@ -278,7 +339,18 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
             {score.gates.map((gate) => <li key={gate.id} title={gate.evidence}>{gate.id}: {gate.status}</li>)}
           </ul>
           <ul>
-            {score.factors.map((factor) => <li key={factor.id}>{factor.id}: {factor.score.toFixed(1)}/{factor.maximum}</li>)}
+            {score.factors.map((factor) => (
+              <li key={factor.id}>
+                {/* DEC-119. A fixed-colour status dot, never sized or filled
+                    by the score — the operator's own request was explicit
+                    about that distinction after the alternative (a filled
+                    bar/ring) was flagged as exactly DEC-073's failure mode.
+                    Colour is paired with the existing `(status)` word, per
+                    DEC-083 rule 2 — never the only carrier of meaning. */}
+                <span className={`factor-dot factor-dot--${factor.status}`} aria-hidden="true" />
+                {factor.id}: {factor.score.toFixed(1)}/{factor.maximum} ({factor.status})
+              </li>
+            ))}
           </ul>
           {score.flags.length > 0 && <ul className="checklist">{score.flags.map((flag, i) => <li key={i}>{flag}</li>)}</ul>}
         </div>
@@ -299,56 +371,55 @@ export function CandidateScoreAction({ candidate, onScored }: { candidate: Candi
  * regex match on one page is not the checked-links crawl that factor is
  * meant to represent.
  */
-export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candidate: CandidateSummary; onMeasured?: (audit: WebOpportunityAudit) => void }) {
+export function CandidateWebOpportunityAction({ candidate, retained, onMeasured }: {
+  candidate: CandidateSummary
+  /**
+   * DEC-117. This URL's measurement, already retained and read back by
+   * `session:restore` — the same shape `CandidateScoreAction`'s `retained`
+   * prop already follows for review history (DEC-108). Present means this
+   * site has been measured before, so it is shown as measured rather than as
+   * a blank row above a button offering to spend a PageSpeed unit on a
+   * measurement already on disk.
+   */
+  retained?: RestoredWebOpportunityMeasurement | null
+  onMeasured?: (audit: WebOpportunityAudit) => void
+}) {
   const [running, setRunning] = useState(false)
   const [measurement, setMeasurement] = useState<WebOpportunityMeasurementResult | null>(null)
   const [audit, setAudit] = useState<WebOpportunityAudit | null>(null)
   const [obsoleteCoverage, setObsoleteCoverage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const run = () => {
+  // DEC-117. Restores from retained evidence on mount, the same shape
+  // `CandidateScoreAction`'s own restore effect uses — no request, no credit.
+  useEffect(() => {
+    if (!retained) return
+    setMeasurement(retained)
+    const { audit: computed, obsoleteCoverage: coverage } = auditCandidateFromMeasurement(candidate, retained)
+    setObsoleteCoverage(coverage)
+    setAudit(computed)
+    onMeasured?.(computed)
+    // `onMeasured` is an inline callback from the parent and would re-run
+    // this on every render; the candidate and its retained evidence are what
+    // actually determine the result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate.website, retained])
+
+  const run = (forceRefresh: boolean) => {
     if (!candidate.website) return
     setRunning(true)
     setError(null)
     setMeasurement(null)
     setAudit(null)
-    window.horus?.discovery.measureWebOpportunity({ url: candidate.website })
+    window.horus?.discovery.measureWebOpportunity({ url: candidate.website, forceRefresh })
       .then((outcome) => {
         setMeasurement(outcome as WebOpportunityMeasurementResult)
         if (outcome.status !== 'completed') return
-        const unmeasured = (reason: string) => ({ status: 'unmeasured' as const, reason })
-        // DEC-098. DEC-072 checked one of seven indicators and handed the
-        // model `measured: []` when the site served https — a completeness
-        // claim it had not earned. The score was always a genuine lower bound
-        // (more indicators can only raise it), but nothing said how much had
-        // been looked at. `scan.coverage` now says it out loud.
-        const scan = scanObsoleteAppearance({
-          signals: {
-            obsoleteTechnologyMarkers: outcome.obsoleteSignals?.obsoleteTechnologyMarkers ?? [],
-            latestCopyrightYear: outcome.obsoleteSignals?.latestCopyrightYear ?? null,
-            servesHttps: outcome.servesHttps.status === 'measured' ? outcome.servesHttps.value : null,
-          },
-          retrievedAt: outcome.retrievedAt,
-        })
-        setObsoleteCoverage(scan.coverage)
-        const obsoleteAppearance = scan.examined.length === 0
-          ? unmeasured('No obsolete-appearance indicator could be checked for this site.')
-          : { status: 'measured' as const, value: scan.indicators }
-        const computed = buildWebOpportunityAudit({
-          url: candidate.website!,
-          retrievedAt: outcome.retrievedAt,
-          site: { availability: 'reachable' },
-          // DEC-097. The rendered inspection DEC-072 said this needed was
-          // already happening — every PageSpeed call returns a full mobile
-          // Lighthouse run, and only `interactive` was ever read from it.
-          mobile: assessMobileResponsiveness(outcome.mobileAudits),
-          obsoleteAppearance,
-          brokenElements: unmeasured('Requires a full link crawl; only a single tel: link check was performed, shown separately.'),
-          performance: outcome.performance.status === 'measured'
-            ? { status: 'measured', value: { timeToInteractiveSeconds: outcome.performance.value.timeToInteractiveSeconds, mobileProfile: 'PageSpeed Insights Lighthouse mobile' } }
-            : unmeasured(outcome.performance.reason),
-          commercialIneffectiveness: unmeasured('Requires content review across the site; not yet wired.'),
-        })
+        // DEC-110. Delegates to the same shared module the bulk pre-screen
+        // uses (`candidate-scoring.ts`); behavior unchanged from before this
+        // extraction (DEC-097/DEC-098).
+        const { audit: computed, obsoleteCoverage } = auditCandidateFromMeasurement(candidate, outcome)
+        setObsoleteCoverage(obsoleteCoverage)
         setAudit(computed)
         onMeasured?.(computed)
       })
@@ -358,10 +429,27 @@ export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candi
 
   return (
     <div className="candidate-score">
-      <button className="secondary" onClick={run} disabled={running || !candidate.website}>
-        {running ? 'Measuring…' : 'Measure web opportunity (spends a real PageSpeed request)'}
+      {/* DEC-117. A URL already measured is served for nothing (DEC-020: once
+          stored, evidence can be re-derived from any number of times for
+          free), so a candidate measured before must not be offered a button
+          that says it spends. Measuring again is still available, and still
+          says what it costs. */}
+      <button className="secondary" onClick={() => run(false)} disabled={running || !candidate.website}>
+        {running
+          ? 'Measuring…'
+          : audit
+            ? 'Re-check from retained measurement (no credit)'
+            : 'Measure web opportunity (spends a real PageSpeed request)'}
       </button>
+      {audit && (
+        <button className="secondary" onClick={() => run(true)} disabled={running || !candidate.website}>
+          Measure again (spends a real PageSpeed request)
+        </button>
+      )}
       {!candidate.website && <p className="notice">No website field on this listing; nothing to measure.</p>}
+      {measurement?.status === 'completed' && measurement.fromCache && (
+        <p className="success">Served from a measurement already retained, retrieved {measurement.retrievedAt} — no PageSpeed credit spent.</p>
+      )}
       {error && <div className="error" role="alert"><strong>Rejected.</strong><p>{error}</p></div>}
       {measurement?.status === 'failed' && <div className="error" role="alert"><strong>Measurement failed: {measurement.reason}</strong><p>{measurement.detail}</p></div>}
       {measurement?.status === 'completed' && measurement.telLinkFound.status === 'measured' && (
@@ -372,7 +460,12 @@ export function CandidateWebOpportunityAction({ candidate, onMeasured }: { candi
         <div className="score-breakdown">
           <p>{audit.status} · lower bound {audit.scoreLowerBound.toFixed(1)}/100</p>
           <ul>
-            {audit.factors.map((factor) => <li key={factor.id}>{factor.id}: {factor.score.toFixed(1)}/{factor.maximum} ({factor.status})</li>)}
+            {audit.factors.map((factor) => (
+              <li key={factor.id}>
+                <span className={`factor-dot factor-dot--${factor.status}`} aria-hidden="true" />
+                {factor.id}: {factor.score.toFixed(1)}/{factor.maximum} ({factor.status})
+              </li>
+            ))}
           </ul>
           {audit.flags.length > 0 && <ul className="checklist">{audit.flags.map((flag, i) => <li key={i}>{flag}</li>)}</ul>}
         </div>

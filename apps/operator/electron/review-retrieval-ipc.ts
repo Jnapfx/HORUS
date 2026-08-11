@@ -12,6 +12,13 @@
  */
 
 import { executeSerpApiReviews } from './integrations/serpapi.js'
+import {
+  extractNextPageToken,
+  extractReviews,
+  readLatestRetainedRun,
+  type RetainedReview,
+  type RetainedReviewPage,
+} from './review-evidence.js'
 
 export type ReviewHistoryResult =
   | {
@@ -21,50 +28,15 @@ export type ReviewHistoryResult =
       pagesFetched: number
       /** `true` only if pagination ran out of further pages naturally, not merely hit the page cap. */
       paginationExhausted: boolean
-      reviews: readonly { isoDate: string; rating: number }[]
+      reviews: readonly RetainedReview[]
+      /**
+       * DEC-108. `true` when this was served from review pages already
+       * retained, spending no SerpApi credit. The interface says so, for the
+       * same reason DEC-077's discovery cache does.
+       */
+      fromCache: boolean
     }
   | { status: 'failed'; reason: string; detail: string }
-
-/**
- * DEC-105. The review text is carried through, not dropped.
- *
- * Until now this kept only the date and rating — everything the scoring model
- * needs — and discarded the words. That left charter 9.5's judgment gates
- * asking the operator whether there is "a pattern of unresolved complaints in
- * the reviews you read" in an application that had never shown them a review.
- * Evidence over scores (CLAUDE.md) is the project's own rule, and the one
- * screen where the operator's own judgement is the input was the screen with
- * no evidence on it.
- */
-function extractReviews(payload: unknown): readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[] {
-  if (typeof payload !== 'object' || payload === null) return []
-  const reviews = (payload as Record<string, unknown>).reviews
-  if (!Array.isArray(reviews)) return []
-  return reviews
-    .map((raw) => {
-      const item = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
-      if (typeof item.iso_date !== 'string' || typeof item.rating !== 'number') return null
-      const user = typeof item.user === 'object' && item.user !== null ? (item.user as Record<string, unknown>) : {}
-      return {
-        isoDate: item.iso_date,
-        rating: item.rating,
-        text: typeof item.snippet === 'string' && item.snippet.trim() ? item.snippet : null,
-        author: typeof user.name === 'string' ? user.name : null,
-        // Charter 9.5's G4 asks about *unresolved* complaints, so whether the
-        // owner replied is part of the evidence, not decoration.
-        ownerResponded: typeof item.response === 'object' && item.response !== null,
-      }
-    })
-    .filter((review): review is { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean } => review !== null)
-}
-
-function extractNextPageToken(payload: unknown): string | null {
-  if (typeof payload !== 'object' || payload === null) return null
-  const pagination = (payload as Record<string, unknown>).serpapi_pagination
-  if (typeof pagination !== 'object' || pagination === null) return null
-  const token = (pagination as Record<string, unknown>).next_page_token
-  return typeof token === 'string' && token ? token : null
-}
 
 export async function runReviewHistoryRetrieval(input: {
   dataId: string
@@ -74,13 +46,39 @@ export async function runReviewHistoryRetrieval(input: {
   maxPages?: number
   fetchImpl?: typeof fetch
   now?: () => Date
+  /**
+   * DEC-108. Review pages already retained for any listing. When this listing
+   * is among them, they are served instead of spending a credit — the same
+   * rule DEC-077 gave discovery, applied to the expensive half of retrieval.
+   */
+  retainedPages?: readonly RetainedReviewPage[]
+  /** Retrieve again even though evidence is retained. The operator's explicit choice, and it spends. */
+  forceRefresh?: boolean
 }): Promise<ReviewHistoryResult> {
   if (!input.dataId.trim()) throw new Error('A listing data_id is required')
-  if (!input.apiKey.trim()) throw new Error('A SerpApi key is required to retrieve review history')
   const maxPages = input.maxPages ?? 3
 
+  if (!input.forceRefresh && input.retainedPages) {
+    const retained = readLatestRetainedRun(input.dataId, input.retainedPages)
+    if (retained) {
+      return {
+        status: 'completed',
+        retrievedAt: retained.retrievedAt,
+        snapshotIds: retained.snapshotIds,
+        pagesFetched: retained.pagesFetched,
+        paginationExhausted: retained.paginationExhausted,
+        reviews: retained.reviews,
+        fromCache: true,
+      }
+    }
+  }
+
+  // Checked only once a real request is actually going to be made, so a
+  // cache hit does not require a credential it will not use.
+  if (!input.apiKey.trim()) throw new Error('A SerpApi key is required to retrieve review history')
+
   const snapshotIds: string[] = []
-  const allReviews: { isoDate: string; rating: number }[] = []
+  const allReviews: RetainedReview[] = []
   let pageToken: string | undefined
   let retrievedAt = ''
   let paginationExhausted = false
@@ -120,6 +118,7 @@ export async function runReviewHistoryRetrieval(input: {
       pagesFetched: snapshotIds.length,
       paginationExhausted,
       reviews: allReviews,
+      fromCache: false,
     }
   } catch (error) {
     return { status: 'failed', reason: 'review_history_request_failed', detail: error instanceof Error ? error.message : String(error) }

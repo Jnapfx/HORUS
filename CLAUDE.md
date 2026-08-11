@@ -29,7 +29,7 @@ These are not preferences. Each is a recorded decision with reasoning behind it.
 | File | Contents |
 | --- | --- |
 | `docs/PROJECT_CHARTER.md` | The full specification, 18 sections. The source of truth. |
-| `docs/DECISIONS.md` | 102 decisions with context, options, and consequences. Read before changing anything structural. |
+| `docs/DECISIONS.md` | 121 decisions with context, options, and consequences. Read before changing anything structural. |
 | `docs/CURRENT_STATE.md` | What is done, what is next, known weaknesses. Update at the end of every working session. |
 | `docs/ROADMAP.md` | Seven phases, 0 through 6. All complete and approved. |
 | `docs/AGENT_ARCHITECTURE.md` | The local-agent architecture, safety boundary, and acceptance criteria. Evaluated and closed by DEC-099. |
@@ -44,7 +44,7 @@ Charter sections worth knowing by number: **9** reputation scoring, **10** web o
 
 **Every phase of `ROADMAP.md` — 0 through 6 — is complete and approved.** Phase 6 closed on 2026-08-09; evidence in `docs/checkpoints/2026-08-09_phase-6-validation-and-hardening.md`.
 
-Charter §4's loop runs end to end on real data: a real search reached a demonstration preview for the first time on 2026-08-08 (DEC-092), and the deterministic model reproduced a figure recorded live four days earlier to within 0.1. Every reputation number in this repository has been reproduced from retained evidence through the real code (DEC-086, DEC-087). 406 automated tests.
+Charter §4's loop runs end to end on real data: a real search reached a demonstration preview for the first time on 2026-08-08 (DEC-092), and the deterministic model reproduced a figure recorded live four days earlier to within 0.1. Every reputation number in this repository has been reproduced from retained evidence through the real code (DEC-086, DEC-087). 465 automated tests, 0 lint warnings/errors, clean build — last confirmed by the operator's own toolchain run on 2026-08-11.
 
 **What remains is not a phase.** HORUS V1 exists to acquire the company's first client, and that means taking a real prospect through to publication and outreach. That crosses both DEC-004 gates, needs the operator's explicit approval per action, and cannot be delegated to an agent or inferred from a general go-ahead.
 
@@ -54,12 +54,12 @@ Charter §4's loop runs end to end on real data: a real search reached a demonst
 
 ### Known weaknesses
 
-- Three of `web-opportunity-v2`'s five factors, and four of seven obsolete-appearance indicators, are unmeasured. Coverage is stated rather than implied (DEC-098), but this is the dimension that *orders* the shortlist.
+- Two of `web-opportunity-v2`'s five factors are unmeasured, and six of seven obsolete-appearance indicators cannot be checked at all on an http-only site, because the page inspector is https-only. Coverage is stated rather than implied (DEC-098), but this is the dimension that *orders* the shortlist, and every figure recorded before 2026-08-09 was computed with its largest factor absent (DEC-109).
 - DEC-018's 3-page review cap means every candidate is `partial_data`; for a business with 314 reviews that is a 9% sample.
 - Search does not paginate to `TARGET_QUALIFIED`/`MAX_EXAMINED` — one request, capped at 20.
 - `SECURITY_REVIEW.md`'s finding F4 is open: hostile review text could route the analyst to an attacker URL. DEC-099 keeps the agent off the critical path and forbids wiring further tools until this is closed or explicitly accepted.
-- FUNCTIONAL_DESIGN §6's six named views do not exist as views.
-- Working prospect state beyond the operator's recorded judgment is in memory only.
+- The selected prospect (`selectedProspectId`) is still not restored when the application reopens. Web-opportunity audits and reputation scores now are, as of DEC-117 — closing half of the gap this line used to describe.
+- A candidate's trailing-window status reads `complete_data` when SerpApi reports no further pages, however few reviews that was (DEC-108).
 
 ### Numbers most likely to be wrong
 

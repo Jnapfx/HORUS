@@ -19,7 +19,63 @@
  * operator prose is sans. Provenance is legible before the value is read.
  */
 
+/*
+ * DEC-119. Visual refinement pass, at the operator's request ("quiero que se
+ * vea wow"). Reads only tokens already declared in `index.css` — no new
+ * accent meaning (still exactly four, DEC-083 rule 1), no token value
+ * changed, so `tests/contrast.test.ts` is untouched by this pass. What
+ * changes is depth, motion and spacing craft on top of the existing palette:
+ * layered shadows and light hairline highlights built from the same neutral
+ * surfaces, a hover lift on interactive cards, a richer header and nav, a
+ * bigger type scale on primary headings, and more consistent rhythm — never
+ * a filled gauge, an animated value, or a fifth colour (rules 1/4/5 still
+ * hold; `.gate-zone` still gets no lift and no transition, on purpose).
+ *
+ * A first pass of this used only dark drop shadows (rgba(0,0,0,...)). On a
+ * near-black shell (--surface-0 is #0e1116) a black shadow is nearly
+ * invisible against a black background — the operator correctly called this
+ * out ("que le hiciste al diseno? se ve igual!!"). Dark-theme depth reads
+ * through *light* edges, not dark ones, so this revision adds hairline
+ * highlights and background gradients built from the existing surface
+ * tokens, plus a visible accent-info top rule on primary panels, alongside
+ * the shadows (kept, since they still help at the outer silhouette).
+ */
+:root {
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24), 0 1px 1px rgba(0, 0, 0, 0.14);
+  --shadow-md: 0 4px 16px -4px rgba(0, 0, 0, 0.4), 0 2px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.55), 0 4px 12px -4px rgba(0, 0, 0, 0.35);
+  --motion-lift: 160ms cubic-bezier(0.2, 0, 0, 1);
+
+  /* Light, not dark: the actual visible depth cue on a near-black shell.
+   * A 1px near-white line at low opacity along a panel's top/left edge reads
+   * as "catching light from above" — the standard dark-UI elevation cue —
+   * without introducing a new colour; it is white at low alpha, not a token. */
+  --edge-highlight: rgba(255, 255, 255, 0.07);
+  --edge-highlight-strong: rgba(255, 255, 255, 0.12);
+
+  /* A rounder rail throughout, at the operator's request for a softer,
+   * more modern structure. These redeclare (not edit) `index.css`'s own
+   * --radius-sm/--radius/--radius-lg — a later `:root` in the cascade wins
+   * for the properties it sets, so every existing `border-radius: var(--radius...)`
+   * rule across this file picks the rounder value automatically, with no
+   * per-selector edits and, since these are px sizes rather than colours,
+   * zero effect on anything `tests/contrast.test.ts` reads. */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 18px;
+}
+
 /* ---------------------------------------------------------------- shell --- */
+
+/* A flat #0e1116 read as literally unchanged in the first pass of this
+ * decision. This radial wash is built from the same two darkest surface
+ * tokens already in the palette (--surface-0, --surface-1) — no new colour —
+ * and is the actual visible depth cue behind the shell, in place of a shadow
+ * that could never show against a background that dark. */
+body {
+  background:
+    radial-gradient(ellipse 1400px 900px at 50% -10%, var(--surface-1) 0%, var(--surface-0) 55%);
+}
 
 .workflow-shell {
   max-width: 1320px;
@@ -42,8 +98,8 @@
 .topbar h1 {
   margin: var(--space-2) 0 0;
   font-size: var(--step-3);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .eyebrow {
@@ -129,6 +185,34 @@
   margin: var(--space-2) 0 0;
 }
 
+/* Collapsed by default: explanatory prose the operator can open on demand
+ * rather than always having to scroll past. The information itself is never
+ * removed — "evidence over scores" (docs/CLAUDE.md) means it stays reachable,
+ * just not forced onto every view by default. */
+.explainer {
+  margin: var(--space-3) 0;
+}
+
+.explainer > summary {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.explainer > summary:hover {
+  color: var(--text-secondary);
+}
+
+.explainer[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.explainer p {
+  margin: 0;
+}
+
 .empty-state {
   margin: var(--space-4) 0;
   padding: var(--space-5);
@@ -136,6 +220,7 @@
   border-radius: var(--radius);
   background: var(--surface-1);
   color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
 }
 
 .empty-state h3 {
@@ -213,9 +298,11 @@
   min-width: 0;
   min-height: 455px;
   padding: var(--space-6);
-  background: var(--surface-2);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
   border: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--edge-highlight-strong);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md), inset 0 1px 0 var(--edge-highlight);
 }
 
 .stage-panel h2 {
@@ -263,6 +350,7 @@ a {
 .draft-list,
 .evidence-picker li,
 .shortlist-view ol,
+.excluded-evidence,
 .tracker-list,
 .details dd,
 .audit-strip strong {
@@ -291,13 +379,22 @@ a {
 
 .details {
   display: flex;
-  gap: var(--space-6);
+  gap: var(--space-4);
   flex-wrap: wrap;
   margin: var(--space-5) 0;
 }
 
+/* DEC-119. Each stat reads as its own tile — a bordered, lightly elevated
+ * box — rather than a bare label/value pair floating in a flex row. Still
+ * tabular numerals beside a status word, never a bar (DEC-083 rule 4); only
+ * the container grew a border, background and radius. */
 .details div {
   min-width: 145px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--edge-highlight);
 }
 
 .details dt,
@@ -310,7 +407,10 @@ a {
 }
 
 .details dd {
-  margin: var(--space-1) 0 0;
+  margin: var(--space-2) 0 0;
+  font-size: var(--step-2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
 
@@ -337,7 +437,8 @@ a {
   padding: var(--space-5);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  background: var(--surface-1);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--edge-highlight);
 }
 
 .prospect-card h3,
@@ -380,11 +481,20 @@ button {
   font-size: var(--step-0);
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--motion-fast) var(--ease), border-color var(--motion-fast) var(--ease);
+  box-shadow: var(--shadow-sm);
+  transition: background var(--motion-fast) var(--ease), border-color var(--motion-fast) var(--ease),
+    box-shadow var(--motion-lift), transform var(--motion-lift);
 }
 
 button:hover:not(:disabled) {
   background: var(--action-fill-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 button:disabled {
@@ -392,6 +502,17 @@ button:disabled {
   border-color: var(--border-control);
   color: var(--text-muted);
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* DEC-083 rule 5: the two DEC-004 gates get no reward for being pressed —
+ * not the heavier shadow, and not the lift either. Explicitly switched off
+ * here, not by oversight. */
+.gate-zone button,
+.gate-zone button:hover:not(:disabled),
+.gate-zone button:active:not(:disabled) {
+  box-shadow: none;
+  transform: none;
 }
 
 /* A dimmed control reads as absent rather than blocked, so every disabled
@@ -482,9 +603,11 @@ input[type='checkbox'] {
 .analyst-panel {
   margin-top: var(--space-6);
   padding: var(--space-6);
-  background: var(--surface-1);
+  background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-0) 100%);
   border: 1px solid var(--border-subtle);
+  border-top-color: var(--edge-highlight-strong);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--edge-highlight);
 }
 
 .discovery-panel h2,
@@ -523,6 +646,151 @@ input[type='checkbox'] {
   gap: var(--space-2);
 }
 
+/* DEC-120. One card per prospect, a real timeline on the left built from
+ * that prospect's own recorded event timestamps, and a "current record"
+ * summary on the right — replacing a single line that ran every event
+ * together behind middle dots. No new event type, no invented timestamp:
+ * every step here is a `TrackerEntry` field that was already being read,
+ * just not rendered as its own step before. */
+.tracker-entries {
+  display: grid;
+  gap: var(--space-5);
+  margin: var(--space-4) 0;
+}
+
+.tracker-entry {
+  padding: var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--edge-highlight);
+}
+
+.tracker-entry-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tracker-entry-header h3 {
+  margin: 0;
+  font-size: var(--step-1);
+}
+
+.tracker-entry-body {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: var(--space-6);
+}
+
+.tracker-timeline-col h4,
+.tracker-record-col h4 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* A real vertical timeline: a connecting line plus a fixed-size dot per
+ * step (DEC-083 rule 4 still applies — this dot marks a position in time,
+ * it is never sized or filled by a score). */
+.tracker-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tracker-timeline li {
+  position: relative;
+  margin-left: 4px;
+  padding: 0 0 var(--space-4) var(--space-5);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.tracker-timeline li:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.tracker-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -4.5px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-info);
+  box-shadow: 0 0 0 3px var(--surface-1);
+}
+
+.tracker-timeline time {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.tracker-timeline strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--step-0);
+  color: var(--text-primary);
+}
+
+.tracker-timeline p {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+}
+
+.tracker-record-status {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.tracker-record-status dt {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tracker-record-status dd {
+  margin: var(--space-1) 0 0;
+  color: var(--text-primary);
+}
+
+.tracker-status-pill {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--accent-info);
+  border-radius: 999px;
+  background: var(--wash-info);
+  color: var(--accent-info);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .tracker-entry-body {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+}
+
 .evidence-picker li,
 .draft-list li,
 .tracker-list li {
@@ -547,13 +815,83 @@ input[type='checkbox'] {
   border-top: 1px solid var(--border-subtle);
 }
 
-.shortlist-view ol {
-  padding-left: var(--space-5);
+/* DEC-112. Replaces a wall of one-line-per-candidate text with clickable
+ * cards — the operator's own complaint about the Shortlist view. */
+.shortlist-cards {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
 }
 
-.shortlist-view ol li {
-  padding: var(--space-2) 0;
+.shortlist-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--edge-highlight);
+  transition: box-shadow var(--motion-lift), border-color var(--motion-lift);
+}
+
+.shortlist-card:hover {
+  border-color: var(--text-muted);
+  border-left-color: var(--accent-info);
+  box-shadow: var(--shadow-md), inset 0 1px 0 var(--edge-highlight-strong);
+}
+
+.shortlist-card-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 220px;
   color: var(--text-primary);
+}
+
+.shortlist-rank {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.shortlist-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+.shortlist-card-badges span {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-3);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+}
+
+.shortlist-selected {
+  color: var(--accent-approved);
+}
+
+.shortlist-reason-detail {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+/* DEC-112. The score/judgment controls, expanded in place under a "not yet
+ * rankable" card rather than navigating away from the Shortlist. */
+.shortlist-card-expanded {
+  flex-basis: 100%;
+  margin-top: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .candidate-score {
@@ -571,6 +909,7 @@ input[type='checkbox'] {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
 }
 
 .score-breakdown p {
@@ -582,6 +921,34 @@ input[type='checkbox'] {
   margin: 0 0 var(--space-2);
   padding-left: var(--space-5);
   line-height: 1.7;
+}
+
+/* DEC-119. The operator asked for a "circle and colour" per factor after a
+ * filled bar/ring was ruled out as DEC-083 rule 4's exact failure case (a
+ * bar cannot tell a low value apart from `unmeasured`). This is the
+ * rule-4-safe version: a small, FIXED-size dot — never sized, filled, or
+ * animated by the score itself — coloured only by `factor.status`
+ * ('measured' vs 'unmeasured'), always beside the status word in text
+ * (DEC-083 rule 2: colour is never the only carrier of meaning). It reuses
+ * the same info/caution pairing `.kind-observed`/`.kind-insufficient_data`
+ * already use for the same distinction elsewhere in this interface — not a
+ * new meaning. */
+.factor-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.factor-dot--measured {
+  background: var(--accent-info);
+}
+
+.factor-dot--unmeasured {
+  background: var(--accent-caution);
 }
 
 .analyst-result {
@@ -643,6 +1010,10 @@ input[type='checkbox'] {
   border-left-width: 4px;
   border-radius: var(--radius);
   background: var(--surface-2);
+  /* Static weight only — never a response to hover or a press, per rule 5.
+   * This is the heaviest surface in the application at rest, not a surface
+   * that gets heavier when the operator does something to it. */
+  box-shadow: var(--shadow-lg);
 }
 
 .gate-zone > h4:first-child {
@@ -762,17 +1133,21 @@ input[type='checkbox'] {
   gap: var(--space-5);
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-1);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--edge-highlight-strong);
+  position: relative;
+  z-index: 1;
 }
 
 .workspace-mark {
   margin: 0;
   /* An h1 for document structure (DEC-038), sized as a wordmark. */
   font-family: var(--font-mono);
-  font-size: var(--step-0);
-  font-weight: 600;
+  font-size: var(--step-1);
+  font-weight: 700;
   letter-spacing: 0.22em;
   color: var(--text-primary);
+  text-shadow: 0 1px 0 var(--edge-highlight);
 }
 
 .workspace-context {
@@ -783,14 +1158,20 @@ input[type='checkbox'] {
   color: var(--text-secondary);
 }
 
+/* DEC-119. A tinted pill instead of a neutral one — this is a status readout
+ * (what the session currently holds), and the existing --accent-info/
+ * --wash-info pair already carries "informational" meaning everywhere else
+ * in this interface (DEC-036/DEC-083 rule 1); reusing it here is the same
+ * meaning, not a new one. */
 .workspace-badge {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-control);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--accent-info);
   border-radius: 999px;
-  background: var(--surface-2);
+  background: var(--wash-info);
   font-family: var(--font-mono);
   font-size: var(--step--1);
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: var(--accent-info);
 }
 
 .workspace-body {
@@ -832,9 +1213,12 @@ input[type='checkbox'] {
 }
 
 .workspace-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   width: 100%;
   padding: 10px var(--space-3);
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-secondary);
@@ -843,7 +1227,8 @@ input[type='checkbox'] {
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
 }
 
 .workspace-nav-item:hover {
@@ -851,10 +1236,46 @@ input[type='checkbox'] {
   color: var(--text-primary);
 }
 
+/* DEC-119. A solid fill, not a tint — the operator's reference showed the
+ * active view as the one unmistakably lit control in the rail. --accent-info
+ * as a solid background with --surface-0 text computes to roughly 8.6:1 (by
+ * hand, against the same WCAG formula `contrast.test.ts` runs — accent-info
+ * is #6fa8f5, surface-0 is #0e1116), well past the 4.5:1 body-text floor.
+ * Still the same four-meaning system (DEC-036/DEC-083 rule 1): this is
+ * "info" used as a solid fill instead of a wash, not a fifth colour. */
 .workspace-nav-item.active {
-  background: var(--wash-info);
-  color: var(--text-primary);
-  font-weight: 600;
+  background: var(--accent-info);
+  border-color: var(--accent-info);
+  color: var(--surface-0);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.workspace-nav-item.active .nav-icon {
+  border-color: var(--surface-0);
+}
+
+/* DEC-119. Decorative per-view shape, aria-hidden — square for a workflow
+ * step, a circle for the single-selection Prospect view, a diamond (a
+ * rotated square) for the Outreach gate. No completion state is implied;
+ * this is a wayfinding shape only. */
+.nav-icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--border-control);
+  border-radius: 3px;
+}
+
+.workspace-nav-item[data-view='prospect'] .nav-icon {
+  border-radius: 50%;
+}
+
+.workspace-nav-item[data-view='outreach'] .nav-icon {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  transform: rotate(45deg);
 }
 
 .workspace-main {
@@ -868,8 +1289,8 @@ input[type='checkbox'] {
 .workspace-main > section > h2:first-child {
   margin: var(--space-2) 0 var(--space-4);
   font-size: var(--step-3);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .workspace-main > section > p {
@@ -884,6 +1305,7 @@ input[type='checkbox'] {
   padding: 0;
   border: 0;
   background: none;
+  box-shadow: none;
 }
 
 .workspace-main .workflow-shell {
@@ -919,6 +1341,7 @@ input[type='checkbox'] {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--surface-3);
+  box-shadow: var(--shadow-sm);
 }
 
 .review-evidence > summary {

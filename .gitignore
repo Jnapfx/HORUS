@@ -38,3 +38,7 @@ desktop.ini
 # retrieved business data — same reason cache/ is excluded, and it must never
 # be committed.
 apps/operator/.validation-data/
+
+# Claude Code's own local permission allow-list — machine-specific, not
+# project config. Same reasoning as .vscode//.idea/ above.
+.claude/settings.local.json

@@ -25,6 +25,17 @@ export type ShortlistCandidateInput = {
   webOpportunityScoreLowerBound: number | null
   /** From `assessProximity(...).band`; `null` if proximity is unavailable (no home base coordinates, or no candidate coordinates). */
   proximityBand: ProximityBand | null
+  /**
+   * True when reputation is scored but at least one of G4/G5/G6 is still
+   * `insufficient_data` — the operator has not yet answered the judgment
+   * gates charter 9.5 requires (DEC-008; those three can never be computed).
+   * `qualified` is `false` in this case for a reason the operator can resolve
+   * without any further retrieval, which is a different situation from a
+   * candidate whose measured factors simply fell short of the threshold —
+   * conflating the two was the exact defect DEC-103 fixed for the
+   * never-scored case; this is its sibling for the never-judged case.
+   */
+  judgmentPending?: boolean
 }
 
 /**
@@ -37,6 +48,7 @@ export type ShortlistCandidateInput = {
  */
 export type ShortlistExclusionReason =
   | 'reputation_not_assessed'
+  | 'reputation_awaiting_judgment'
   | 'not_reputation_qualified'
   | 'no_proximity_data'
   | 'no_web_opportunity_data'
@@ -65,7 +77,7 @@ export function buildShortlist(candidates: readonly ShortlistCandidateInput[]): 
       continue
     }
     if (!candidate.qualified) {
-      excluded.push({ candidate, reason: 'not_reputation_qualified' })
+      excluded.push({ candidate, reason: candidate.judgmentPending ? 'reputation_awaiting_judgment' : 'not_reputation_qualified' })
       continue
     }
     if (candidate.proximityBand === null) {

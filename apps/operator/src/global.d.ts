@@ -79,8 +79,8 @@ declare global {
             }
           | { status: 'failed'; reason: string; detail: string }
         >
-        /** DEC-071. Spends further real SerpApi credits, up to one per page retrieved. */
-        fetchReviewHistory: (input: { dataId: string }) => Promise<
+        /** DEC-071/DEC-108. Spends further real SerpApi credits, up to one per page — unless this listing's pages are already retained, in which case it serves those and spends nothing. */
+        fetchReviewHistory: (input: { dataId: string; forceRefresh?: boolean }) => Promise<
           | {
               status: 'completed'
               retrievedAt: string
@@ -88,11 +88,12 @@ declare global {
               pagesFetched: number
               paginationExhausted: boolean
               reviews: readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[]
+              fromCache: boolean
             }
           | { status: 'failed'; reason: string; detail: string }
         >
-        /** DEC-072. Spends a real PageSpeed quota unit and fetches the candidate's own site once. */
-        measureWebOpportunity: (input: { url: string }) => Promise<
+        /** DEC-072, cached by DEC-117. Spends a real PageSpeed quota unit and fetches the candidate's own site once — unless this exact URL was already measured, in which case no credit is spent. Set forceRefresh to measure again anyway. */
+        measureWebOpportunity: (input: { url: string; forceRefresh?: boolean }) => Promise<
           | {
               status: 'completed'
               retrievedAt: string
@@ -101,6 +102,17 @@ declare global {
           performance: { status: 'measured'; value: { timeToInteractiveSeconds: number; snapshotId: string } } | { status: 'unmeasured'; reason: string }
               servesHttps: { status: 'measured'; value: boolean } | { status: 'unmeasured'; reason: string }
               telLinkFound: { status: 'measured'; value: { found: boolean; snapshotId: string } } | { status: 'unmeasured'; reason: string }
+              /** DEC-111. Same-origin link check feeding `broken_elements` — null when the homepage had no checkable same-origin https link. */
+              brokenLinks: {
+                checkedLinks: number
+                brokenLinks: number
+                contactPath:
+                  | { status: 'verified-working' }
+                  | { status: 'verified-broken'; verification: 'executed' }
+                  | { status: 'unmeasured'; reason: string }
+              } | null
+              /** DEC-117. True when served from a measurement already retained for this exact URL — no PageSpeed credit spent. */
+              fromCache: boolean
             }
           | { status: 'failed'; reason: string; detail: string }
         >
@@ -125,7 +137,7 @@ declare global {
           | { status: 'failed'; reason: string; detail: string }
         >
       }
-      /** DEC-107. Rebuilds the last working session from retained evidence. Spends nothing. */
+      /** DEC-107, extended by DEC-117. Rebuilds the last working session from retained evidence. Spends nothing. */
       session: {
         restore: () => Promise<{
           discovery: {
@@ -134,7 +146,16 @@ declare global {
             snapshotId: string
             candidates: Extract<Awaited<ReturnType<Window['horus']['discovery']['run']>>, { status: 'completed' }>['candidates']
           } | null
-          reviewHistories: Record<string, { reviews: unknown[]; retrievedAt: string; paginationExhausted: boolean }>
+          reviewHistories: Record<string, {
+            dataId: string
+            retrievedAt: string
+            snapshotIds: readonly string[]
+            pagesFetched: number
+            paginationExhausted: boolean
+            reviews: readonly { isoDate: string; rating: number; text: string | null; author: string | null; ownerResponded: boolean }[]
+          }>
+          /** DEC-117. Keyed by the business's own website URL — the same key `measureWebOpportunity` is called with. */
+          webOpportunityMeasurements: Record<string, Extract<Awaited<ReturnType<Window['horus']['discovery']['measureWebOpportunity']>>, { status: 'completed' }>>
         }>
       }
       /** DEC-094. Durable operator judgment on charter 9.5's judgment gates; read back as a projection, never a second stored copy. */

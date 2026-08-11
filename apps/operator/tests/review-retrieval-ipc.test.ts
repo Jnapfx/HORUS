@@ -138,3 +138,98 @@ describe('DEC-105 — the review text reaches the operator', () => {
     expect(result.status === 'completed' && result.reviews[0].ownerResponded).toBe(false)
   })
 })
+
+/**
+ * DEC-108. The cache DEC-077 gave discovery, applied to the expensive half of
+ * retrieval. In the operator's own store, 46 retained review pages held only
+ * 23 distinct ones: 23 SerpApi credits, 9% of a monthly free tier, spent
+ * re-retrieving reviews that were already on disk (DEC-020, DEC-032).
+ */
+describe('runReviewHistoryRetrieval — retained evidence (DEC-108)', () => {
+  const retainedPages = [
+    {
+      id: 'raw_cached_1',
+      retrievedAt: '2026-08-09T19:15:40.000Z',
+      request: 'https://serpapi.com/search.json?engine=google_maps_reviews&data_id=cached-id&hl=en&sort_by=newestFirst&api_key=REDACTED_SERPAPI_KEY',
+      payload: {
+        search_parameters: { data_id: 'cached-id' },
+        reviews: [{ iso_date: '2026-08-01T00:00:00Z', rating: 5, review_id: 'r1', snippet: 'good', user: { name: 'Ana' } }],
+        serpapi_pagination: {},
+      },
+    },
+  ]
+
+  const refuseToSpend: typeof fetch = async () => {
+    throw new Error('a SerpApi request was made for reviews already retained')
+  }
+
+  it('serves retained pages without making a request or storing a new snapshot', async () => {
+    const saved: unknown[] = []
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'cached-id',
+      apiKey: 'real-key',
+      appendRawSnapshot: (snapshot) => { saved.push(snapshot); return { id: 'raw_new', path: 'x', payloadHash: 'h' } },
+      fetchImpl: refuseToSpend,
+      retainedPages,
+    })
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      fromCache: true,
+      retrievedAt: '2026-08-09T19:15:40.000Z',
+      pagesFetched: 1,
+      paginationExhausted: true,
+      snapshotIds: ['raw_cached_1'],
+    })
+    // Evidence is immutable and is not rewritten by being read back.
+    expect(saved).toEqual([])
+  })
+
+  it('does not require a SerpApi key to read evidence it already paid for', async () => {
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'cached-id',
+      apiKey: '',
+      appendRawSnapshot: () => { throw new Error('should not store') },
+      fetchImpl: refuseToSpend,
+      retainedPages,
+    })
+    expect(result).toMatchObject({ status: 'completed', fromCache: true })
+  })
+
+  it('spends when the operator explicitly forces a fresh retrieval', async () => {
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'cached-id',
+      apiKey: 'real-key',
+      appendRawSnapshot: () => ({ id: 'raw_new', path: 'x', payloadHash: 'h' }),
+      fetchImpl: async () => new Response(page([{ iso_date: '2026-08-08T00:00:00Z', rating: 4 }], null), { status: 200 }),
+      retainedPages,
+      forceRefresh: true,
+    })
+    expect(result).toMatchObject({ status: 'completed', fromCache: false, pagesFetched: 1 })
+  })
+
+  it('spends for a listing that has no retained evidence, even when other listings do', async () => {
+    let requests = 0
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'never-retrieved',
+      apiKey: 'real-key',
+      appendRawSnapshot: () => ({ id: 'raw_new', path: 'x', payloadHash: 'h' }),
+      fetchImpl: async () => { requests += 1; return new Response(page([{ iso_date: '2026-08-08T00:00:00Z', rating: 4 }], null), { status: 200 }) },
+      retainedPages,
+    })
+    expect(requests).toBe(1)
+    expect(result).toMatchObject({ status: 'completed', fromCache: false })
+  })
+
+  it('still spends when no retained evidence is supplied at all', async () => {
+    let requests = 0
+    const result = await runReviewHistoryRetrieval({
+      dataId: 'cached-id',
+      apiKey: 'real-key',
+      appendRawSnapshot: () => ({ id: 'raw_new', path: 'x', payloadHash: 'h' }),
+      fetchImpl: async () => { requests += 1; return new Response(page([{ iso_date: '2026-08-08T00:00:00Z', rating: 4 }], null), { status: 200 }) },
+    })
+    expect(requests).toBe(1)
+    expect(result).toMatchObject({ status: 'completed', fromCache: false })
+  })
+})

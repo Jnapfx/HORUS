@@ -101,3 +101,28 @@ describe('DEC-103 — never assessed is not the same as assessed and short', () 
     expect(result.ranked).toHaveLength(1)
   })
 })
+
+describe('DEC-110 — awaiting judgment is not the same as scored and short', () => {
+  const base = { proximityBand: 'within_5_miles' as const, webOpportunityScoreLowerBound: 50 }
+
+  it('reports a scored candidate whose judgment gates are unanswered as awaiting judgment, not not-qualified', () => {
+    const result = buildShortlist([
+      { id: 'high-but-unjudged', qualified: false, reputationScoreLowerBound: 85, judgmentPending: true, ...base },
+    ])
+    expect(result.excluded[0].reason).toBe('reputation_awaiting_judgment')
+  })
+
+  it('still reports a scored, judged candidate below threshold as not qualified', () => {
+    const result = buildShortlist([
+      { id: 'judged-low', qualified: false, reputationScoreLowerBound: 53.5, judgmentPending: false, ...base },
+    ])
+    expect(result.excluded[0].reason).toBe('not_reputation_qualified')
+  })
+
+  it('defaults to not-qualified when judgmentPending is not supplied, so every existing caller is unaffected', () => {
+    const result = buildShortlist([
+      { id: 'legacy-caller', qualified: false, reputationScoreLowerBound: 53.5, ...base },
+    ])
+    expect(result.excluded[0].reason).toBe('not_reputation_qualified')
+  })
+})

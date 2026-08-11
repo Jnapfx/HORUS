@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react'
-import { screenListingGates, buildReputationScore, type ReputationScore } from '../domain/reputation-scoring'
-import { summarizeReviewHistory } from '../domain/review-history'
-import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
-import { resolveJudgment, emptyJudgment } from '../domain/operator-judgment'
+import { screenListingGates, type ReputationScore } from '../domain/reputation-scoring'
 import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { assessProximity, type Coordinates } from '../domain/proximity'
+import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import { CandidateScoreAction, CandidateWebOpportunityAction } from './CandidateActions'
+import { auditCandidateFromMeasurement, scoreCandidateFromHistory } from './candidate-scoring'
 import { ShortlistView } from './ShortlistView'
 import { ProspectRecord, type ProspectSection } from './ProspectRecord'
 import { RealTrackerPanel } from './RealTrackerPanel'
 import { AnalystPanel } from './AnalystPanel'
 import { RepresentativeWorkflow } from './RepresentativeWorkflow'
-import type { DiscoveryRunResult } from './types'
+import type { DiscoveryRunResult, RestoredReviewHistory, RestoredWebOpportunityMeasurement } from './types'
 
 /**
  * DEC-102. The operator workspace: FUNCTIONAL_DESIGN §6's six named views,
@@ -69,8 +68,35 @@ export function OperatorWorkspace() {
   const [scores, setScores] = useState<Record<string, ReputationScore>>({})
   const [audits, setAudits] = useState<Record<string, WebOpportunityAudit>>({})
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null)
+  // DEC-110. Bulk pre-screen: automates the per-candidate scoring buttons
+  // below for every G1/G2-passing candidate, one consent covering all of it.
+  const [prescreenConfirmed, setPrescreenConfirmed] = useState(false)
+  const [prescreening, setPrescreening] = useState(false)
+  const [prescreenProgress, setPrescreenProgress] = useState<{ done: number; total: number } | null>(null)
+  const [prescreenErrors, setPrescreenErrors] = useState<readonly string[]>([])
 
   const [restoring, setRestoring] = useState(true)
+  const [retainedHistories, setRetainedHistories] = useState<Record<string, RestoredReviewHistory>>({})
+  // DEC-117. This candidate's own website URL's most recent retained
+  // web-opportunity measurement, keyed by that URL (the same key
+  // `measureWebOpportunity` is called with) — the audit equivalent of
+  // `retainedHistories` above.
+  const [retainedMeasurements, setRetainedMeasurements] = useState<Record<string, RestoredWebOpportunityMeasurement>>({})
+  // DEC-115. The operator's own request: the Search view should start fresh
+  // every time the application opens, while Shortlist and Prospect keep
+  // showing everything already scored and judged. This flag controls the
+  // Search view's own display only — `result`/`completed` is still restored
+  // below unconditionally, because Shortlist and Prospect both read from it
+  // and losing that would break "lo demas se debe quedar guardado." A fresh
+  // `run()` in the current session, or the operator's own "Show it anyway"
+  // escape hatch, is the only way this becomes true after a restore.
+  const [searchResultsVisible, setSearchResultsVisible] = useState(false)
+  // DEC-112. Hides a candidate from view — the operator's own request for a
+  // way to drop businesses that are obviously not a fit before spending any
+  // more attention on them. This never touches retained evidence (DEC-020's
+  // raw snapshots are untouched, charter 14): it is purely a display filter,
+  // so un-hiding costs nothing and a fresh search or restart clears it.
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (homeBase !== undefined) return
@@ -78,16 +104,25 @@ export function OperatorWorkspace() {
   }, [homeBase])
 
   /**
-   * DEC-107. Rebuilds the last session from evidence already on disk, so
-   * closing the application no longer throws away a search the operator paid
-   * for. Costs nothing — no request is made.
+   * DEC-107, corrected by DEC-108, extended by DEC-117. Rebuilds the last
+   * session from evidence already on disk, so closing the application no
+   * longer throws away a search the operator paid for. Costs nothing — no
+   * request is made.
    *
-   * Scores are **recomputed** from the retained review snapshots rather than
-   * restored from a stored copy, which is charter §14's own model: evidence is
-   * immutable, everything derived from it is recomputable, and a second stored
-   * copy of a score is a thing that can drift from the evidence that produced
-   * it. The operator's recorded judgment (DEC-094) is read back and applied,
-   * so a candidate that qualified yesterday still qualifies today.
+   * **Scoring itself is not done here** — it is delegated to the same
+   * `scoreCandidateFromHistory`/`auditCandidateFromMeasurement` functions the
+   * live per-candidate actions use (DEC-108's own lesson: two paths computing
+   * the same thing independently drift). What *is* done here, new as of
+   * DEC-117, is calling them eagerly for every candidate with retained
+   * evidence, so `scores`/`audits` are populated the moment the application
+   * opens rather than only once each candidate's own action component happens
+   * to mount. Before this, a restored session's Shortlist looked exactly like
+   * an unscored one — every previously-qualified candidate showed as "not yet
+   * rankable" until the operator expanded it by hand — and DEC-115 made that
+   * worse by hiding the Search view's own candidate list by default on
+   * restore, removing the one place a `CandidateScoreAction` was guaranteed to
+   * mount. This is exactly the "web-opportunity audits... not restored" gap
+   * CLAUDE.md's own known-weaknesses list named.
    */
   useEffect(() => {
     let cancelled = false
@@ -95,13 +130,17 @@ export function OperatorWorkspace() {
       const bridge = window.horus
       if (!bridge) { setRestoring(false); return }
       try {
-        const [session, judgmentEvents] = await Promise.all([bridge.session.restore(), bridge.judgment.list()])
+        const [session, judgmentEvents] = await Promise.all([
+          bridge.session.restore(),
+          bridge.judgment.list().catch(() => [] as JudgmentEvent[]),
+        ])
         if (cancelled || !session.discovery) return
 
-        const request = session.discovery.request as { category?: string; city?: string } | null
-        if (request?.category && request?.city) {
-          setInput((current) => ({ ...current, category: request.category!, city: request.city! }))
-        }
+        // DEC-115. The Search form itself is deliberately left blank here —
+        // the operator asked for the Search panel to start fresh every time
+        // the application opens, not pre-filled with the last category and
+        // city. Nothing below this line is skipped: the underlying evidence
+        // is still restored so Shortlist and Prospect keep working.
 
         // Rebuilt from the retained snapshot. No request is made, so a
         // restore can never spend a credit.
@@ -114,48 +153,46 @@ export function OperatorWorkspace() {
           fromCache: true,
         }
         setResult(outcome as unknown as DiscoveryRunResult)
-        setConfirmed(true)
+        setRetainedHistories(session.reviewHistories)
+        setRetainedMeasurements(session.webOpportunityMeasurements)
 
-        // Recompute a score for every candidate whose review history is
-        // already retained, applying whatever judgment was recorded for it.
-        const restored: Record<string, ReputationScore> = {}
-        for (const candidate of outcome.candidates) {
-          const dataId = candidate.dataId
-          if (!dataId) continue
-          const history = session.reviewHistories[dataId]
+        // DEC-117. Eagerly compute every restorable score and audit — see
+        // this effect's own comment above for why this now happens here
+        // rather than only lazily, per mounted candidate action.
+        const nextScores: Record<string, ReputationScore> = {}
+        for (const candidate of session.discovery.candidates) {
+          if (!candidate.dataId) continue
+          const history = session.reviewHistories[candidate.dataId]
           if (!history) continue
-          const reviews = (history.reviews as { iso_date?: string; rating?: number }[])
-            .filter((r) => typeof r.iso_date === 'string' && typeof r.rating === 'number')
-            .map((r) => ({ isoDate: r.iso_date!, rating: r.rating! }))
-          if (reviews.length === 0) continue
-          const summary = summarizeReviewHistory({ reviews, retrievedAt: history.retrievedAt, paginationExhausted: history.paginationExhausted })
-          const prior = findRecordedJudgment(judgmentEvents as JudgmentEvent[], dataId)
-          const assessed = resolveJudgment(prior?.judgment ?? emptyJudgment())
-          restored[dataId] = buildReputationScore({
-            listingId: dataId,
-            retrievedAt: history.retrievedAt,
-            rating: candidate.rating === null ? { status: 'unmeasured', reason: 'No rating on the listing.' } : { status: 'measured', value: candidate.rating },
-            reviewCount: candidate.reviewCount === null ? { status: 'unmeasured', reason: 'No review count on the listing.' } : { status: 'measured', value: candidate.reviewCount },
-            recentActivity: {
-              reviewsLast90Days: { status: 'measured', value: summary.reviewsLast90Days },
-              reviewsLast365Days: { status: 'measured', value: summary.reviewsLast365Days },
-              daysSinceLatestReview: summary.daysSinceLatestReview === null
-                ? { status: 'unmeasured', reason: 'No reviews were retrieved.' }
-                : { status: 'measured', value: summary.daysSinceLatestReview },
-            },
-            recentConsistency: summary.recentConsistency
-              ? { status: 'measured', value: summary.recentConsistency }
-              : { status: 'unmeasured', reason: 'Fewer than 5 trailing-year reviews were retrieved.' },
-            longevity: summary.retrievedHistorySpanYears === null
-              ? { status: 'unmeasured', reason: 'Fewer than two dated reviews were retrieved.' }
-              : { status: 'measured', value: { historySpanYears: summary.retrievedHistorySpanYears } },
-            complaintPattern: assessed.complaintPattern,
-            operationalStatus: assessed.operationalStatus,
-            listingIdentity: assessed.listingIdentity,
-            market: { status: 'within_target', evidence: 'Discovered via a search already scoped to the target city.' },
-          })
+          const priorJudgment = findRecordedJudgment(judgmentEvents as JudgmentEvent[], candidate.dataId)?.judgment
+          try {
+            nextScores[candidate.dataId] = scoreCandidateFromHistory(candidate, history, priorJudgment)
+          } catch {
+            // A judgment recorded before a field this model reads existed, or
+            // any other reconstruction failure, must not crash the restore —
+            // that candidate simply stays unscored until re-touched by hand.
+          }
         }
-        if (!cancelled && Object.keys(restored).length > 0) setScores(restored)
+        if (Object.keys(nextScores).length > 0) setScores((prev) => ({ ...nextScores, ...prev }))
+
+        const nextAudits: Record<string, WebOpportunityAudit> = {}
+        for (const candidate of session.discovery.candidates) {
+          const key = candidate.dataId
+          if (!key || !candidate.website) continue
+          const measurement = session.webOpportunityMeasurements[candidate.website]
+          if (!measurement) continue
+          try {
+            nextAudits[key] = auditCandidateFromMeasurement(candidate, measurement).audit
+          } catch {
+            // Same reasoning as above: a reconstruction failure leaves this
+            // one candidate unmeasured rather than aborting the restore.
+          }
+        }
+        if (Object.keys(nextAudits).length > 0) setAudits((prev) => ({ ...nextAudits, ...prev }))
+        // Deliberately *not* `setConfirmed(true)`. That acknowledgement is the
+        // operator's consent to spend a credit, and restoring a session is not
+        // the operator giving it — it left the application launched with the
+        // search button already armed.
       } finally {
         if (!cancelled) setRestoring(false)
       }
@@ -168,13 +205,112 @@ export function OperatorWorkspace() {
     setError(null)
     setResult(null)
     window.horus?.discovery.run({ ...input, forceRefresh })
-      .then((outcome) => setResult(outcome as DiscoveryRunResult))
+      .then((outcome) => {
+        setResult(outcome as DiscoveryRunResult)
+        // DEC-115. A search actually run in this session is always shown —
+        // only a *restored* result starts hidden on the Search view.
+        setSearchResultsVisible(true)
+      })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'The discovery request was rejected.'))
       .finally(() => setRunning(false))
   }
 
   const completed = result?.status === 'completed' ? result : null
   const canRun = confirmed && input.category.trim().length > 0 && input.city.trim().length > 0 && !running
+
+  /**
+   * DEC-110. Automates exactly what the per-candidate "Fetch review history &
+   * score" / "Measure web opportunity" buttons already do (CandidateActions),
+   * for every candidate that passes the free G1/G2 screen first — the same
+   * cheapest-first discipline the project's own conventions already state.
+   * Candidates that fail G1/G2 are skipped without spending anything on them.
+   *
+   * This does not, and cannot, produce a `qualified` shortlist by itself:
+   * G4/G5/G6 (charter 9.5) require the operator's own reading of the reviews
+   * and are never auto-answered (DEC-008, hard rule 5). What it produces is a
+   * provisional reputation score and web-opportunity measurement for every
+   * viable candidate, so the Shortlist view's "not yet rankable" list — now
+   * sorted best-scored-first — becomes a worklist of which candidates are
+   * worth the operator's own judgment next, instead of an unordered dump of
+   * every raw result.
+   */
+  const runBulkPrescreen = async () => {
+    if (!completed) return
+    const viable = completed.candidates.filter((candidate) => {
+      if (!candidate.dataId) return false
+      const screen = screenListingGates({ rating: candidate.rating, reviewCount: candidate.reviewCount })
+      return screen.g1.status === 'passed' && screen.g2.status === 'passed'
+    })
+    setPrescreening(true)
+    setPrescreenErrors([])
+    setPrescreenProgress({ done: 0, total: viable.length })
+
+    const errors: string[] = []
+    for (const candidate of viable) {
+      const key = candidate.dataId!
+      const label = candidate.name ?? key
+
+      try {
+        const historyOutcome = await window.horus?.discovery.fetchReviewHistory({ dataId: key, forceRefresh: false })
+        if (historyOutcome?.status === 'completed') {
+          const score = scoreCandidateFromHistory(candidate, {
+            retrievedAt: historyOutcome.retrievedAt,
+            reviews: historyOutcome.reviews,
+            paginationExhausted: historyOutcome.paginationExhausted,
+          })
+          setScores((prev) => ({ ...prev, [key]: score }))
+        } else if (historyOutcome?.status === 'failed') {
+          errors.push(`${label}: review history — ${historyOutcome.reason}`)
+        }
+      } catch (err) {
+        errors.push(`${label}: review history — ${err instanceof Error ? err.message : 'request rejected'}`)
+      }
+
+      if (candidate.website) {
+        try {
+          const measured = await window.horus?.discovery.measureWebOpportunity({ url: candidate.website })
+          if (measured?.status === 'completed') {
+            const { audit } = auditCandidateFromMeasurement(candidate, measured)
+            setAudits((prev) => ({ ...prev, [key]: audit }))
+          } else if (measured?.status === 'failed') {
+            errors.push(`${label}: web opportunity — ${measured.reason}`)
+          }
+        } catch (err) {
+          errors.push(`${label}: web opportunity — ${err instanceof Error ? err.message : 'request rejected'}`)
+        }
+      }
+
+      setPrescreenProgress((prev) => (prev ? { done: prev.done + 1, total: prev.total } : prev))
+    }
+
+    setPrescreenErrors(errors)
+    setPrescreening(false)
+    setView('shortlist')
+  }
+
+  // DEC-112. Same key convention used everywhere else a candidate needs one
+  // (`scores`, `audits`, `retainedHistories`): the listing's own `dataId`
+  // when present, otherwise its position in the *original* discovery result,
+  // computed before any filtering — so removing one candidate can never
+  // relabel another.
+  const visibleCandidates = (completed?.candidates ?? [])
+    .map((candidate, index) => ({ candidate, key: candidate.dataId ?? `index-${index}` }))
+    .filter(({ key }) => !dismissedIds.has(key))
+
+  /**
+   * DEC-113. The operator's own request: the moment recording a judgment is
+   * what makes a candidate qualified, it should become the selected prospect
+   * and stay there — not require a separate trip to the Shortlist to press
+   * "Select as prospect" on a candidate that was just, in effect, selected by
+   * the operator's own judgment. This is navigation only: it does not
+   * publish, contact anyone, or cross either DEC-004 gate, and it is exactly
+   * what "Select as prospect" already did, just triggered by the same button
+   * press that recorded the judgment instead of a second one.
+   */
+  const onCandidateQualified = (dataId: string) => {
+    setSelectedProspectId(dataId)
+    setView('prospect')
+  }
 
   const prospectSection: ProspectSection =
     view === 'prospect' ? 'evidence' : view === 'demo' ? 'demonstration' : view === 'outreach' ? 'outreach' : 'hidden'
@@ -201,9 +337,16 @@ export function OperatorWorkspace() {
                   <li key={item.id}>
                     <button
                       className={`workspace-nav-item${view === item.id ? ' active' : ''}`}
+                      data-view={item.id}
                       aria-current={view === item.id ? 'page' : undefined}
                       onClick={() => setView(item.id)}
                     >
+                      {/* DEC-119. Purely decorative — a per-view shape, not a
+                          completion indicator (no state currently tracks
+                          per-view completion, and this does not invent any).
+                          aria-hidden so it adds nothing to the accessible
+                          name a test or screen reader would see. */}
+                      <span className="nav-icon" aria-hidden="true" />
                       {item.label}
                     </button>
                   </li>
@@ -218,12 +361,15 @@ export function OperatorWorkspace() {
             <section aria-label="Search market">
               <p className="eyebrow">REAL SEARCH · SPENDS A SERPAPI CREDIT</p>
               <h2>Search market</h2>
-              <p>
-                Calls SerpApi's Google Maps API and retains the raw response as immutable local evidence
-                (DEC-020, DEC-046). One request only — it does not paginate to a target or maximum. It publishes
-                nothing and contacts no one. A repeat search for the same category and city reuses the stored
-                evidence instead of spending another credit (DEC-077), unless a fresh search is forced.
-              </p>
+              <details className="explainer">
+                <summary>What this does</summary>
+                <p>
+                  Calls SerpApi's Google Maps API and retains the raw response as immutable local evidence
+                  (DEC-020, DEC-046). One request only — it does not paginate to a target or maximum. It publishes
+                  nothing and contacts no one. A repeat search for the same category and city reuses the stored
+                  evidence instead of spending another credit (DEC-077), unless a fresh search is forced.
+                </p>
+              </details>
 
               <div className="search-form">
                 <label>Business category<input value={input.category} onChange={(e) => setInput({ ...input, category: e.target.value })} placeholder="e.g. landscaping" /></label>
@@ -240,41 +386,97 @@ export function OperatorWorkspace() {
               {error && <div className="error" role="alert"><strong>Request rejected before completion.</strong><p>{error}</p></div>}
               {result?.status === 'failed' && <div className="error" role="alert"><strong>Search failed: {result.reason}</strong><p>{result.detail}</p></div>}
 
-              {completed && (
+              {completed && !searchResultsVisible && (
+                <p className="notice">
+                  A search from an earlier session is saved ({completed.candidateCount} candidates, retrieved{' '}
+                  {completed.retrievedAt}) — Shortlist and Prospect already reflect it.{' '}
+                  <button className="secondary" onClick={() => setSearchResultsVisible(true)}>Show it here too</button>
+                </p>
+              )}
+
+              {completed && searchResultsVisible && (
                 <>
                   <p className="success">
                     {completed.fromCache
                       ? `Served from cached evidence snapshot ${completed.snapshotId}, retrieved ${completed.retrievedAt} — no new SerpApi credit spent.`
                       : `Retrieved and stored as new evidence snapshot ${completed.snapshotId} at ${completed.retrievedAt}.`}
                   </p>
-                  <h3>Candidates ({completed.candidateCount})</h3>
+                  <div className="gate-zone">
+                    <h4>Auto-screen candidates</h4>
+                    <details className="explainer">
+                      <summary>What this does</summary>
+                      <p className="notice">
+                        Runs the free G1/G2 screen on every candidate, then automatically retrieves review history and
+                        measures web opportunity — the same actions available per candidate below — for every one that
+                        passes it. This produces a provisional reputation score for each, sorted best-first on the
+                        Shortlist view, so you know which candidates are worth reading reviews for next. It does{' '}
+                        <strong>not</strong> qualify anyone: G4–G6 still need your own reading of the reviews
+                        (charter 9.5) before any candidate can be ranked.
+                      </p>
+                    </details>
+                    <label className="confirm-spend">
+                      <input type="checkbox" checked={prescreenConfirmed} onChange={(e) => setPrescreenConfirmed(e.target.checked)} />
+                      {' '}I understand this spends a SerpApi review-history credit and, for candidates with a website, a
+                      PageSpeed request, for every candidate that passes G1/G2.
+                    </label>
+                    <button onClick={runBulkPrescreen} disabled={!prescreenConfirmed || prescreening}>
+                      {prescreening
+                        ? `Screening… ${prescreenProgress ? `${prescreenProgress.done}/${prescreenProgress.total}` : ''}`
+                        : 'Auto-screen candidates & rank'}
+                    </button>
+                    {!prescreenConfirmed && <p className="control-hint">Blocked: acknowledge the credit cost above before this can be used.</p>}
+                    {prescreenErrors.length > 0 && (
+                      <div className="error" role="alert">
+                        <strong>{prescreenErrors.length} candidate(s) could not be screened; the rest completed.</strong>
+                        <ul className="checklist">{prescreenErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                      </div>
+                    )}
+                  </div>
+                  <h3>Candidates ({visibleCandidates.length}{visibleCandidates.length !== completed.candidateCount ? ` of ${completed.candidateCount}` : ''})</h3>
+                  {dismissedIds.size > 0 && (
+                    <p className="control-hint">
+                      {dismissedIds.size} removed from this list. <button className="secondary" onClick={() => setDismissedIds(new Set())}>Restore all</button>
+                    </p>
+                  )}
                   <ul className="evidence-list">
-                    {completed.candidates.map((candidate, index) => {
-                      const key = candidate.dataId ?? `index-${index}`
+                    {visibleCandidates.map(({ candidate, key }) => {
                       const screen = screenListingGates({ rating: candidate.rating, reviewCount: candidate.reviewCount })
                       const proximity = homeBase && candidate.coordinates ? assessProximity(homeBase, candidate.coordinates) : null
                       return (
-                        <li key={index}>
+                        <li key={key} id={`candidate-${key}`}>
                           <p>
-                            {candidate.name ?? 'Unnamed listing'} — {candidate.rating ?? 'no rating'} rating · {candidate.reviewCount ?? 'no review count'} reviews · {candidate.website ? 'has a website field' : 'no website field'}
-                            {' · '}<span title={screen.g1.evidence}>G1 {screen.g1.status}</span>
-                            {' · '}<span title={screen.g2.evidence}>G2 {screen.g2.status}</span>
+                            <strong>{candidate.name ?? 'Unnamed listing'}</strong>
+                            {' — '}{candidate.rating ?? '—'}★ · {candidate.reviewCount ?? '—'} reviews
+                            {' · '}<span title={`G1 (${screen.g1.status}): ${screen.g1.evidence}`}>G1 {screen.g1.status}</span>
+                            {' · '}<span title={`G2 (${screen.g2.status}): ${screen.g2.evidence}`}>G2 {screen.g2.status}</span>
                             {' · '}
                             {proximity
-                              ? <span title="Straight-line distance (DEC-074); charter bands are provisional, not driving distance">{proximity.distanceMiles} mi · {proximity.band}</span>
-                              : <span>proximity unavailable{homeBase === null ? ' (home base coordinates not configured)' : candidate.coordinates === null ? ' (no coordinates on this listing)' : ''}</span>}
+                              ? <span title="Straight-line distance (DEC-074); charter bands are provisional, not driving distance">{proximity.distanceMiles} mi</span>
+                              : <span title={homeBase === null ? 'Home base coordinates not configured' : 'No coordinates on this listing'}>distance n/a</span>}
+                            {' · '}
+                            <button
+                              className="secondary"
+                              onClick={() => setDismissedIds((prev) => new Set(prev).add(key))}
+                              title="Removes it from this list only — does not delete any retained evidence."
+                            >
+                              Remove
+                            </button>
                           </p>
-                          <CandidateScoreAction candidate={candidate} onScored={(score) => setScores((prev) => ({ ...prev, [key]: score }))} />
-                          <CandidateWebOpportunityAction candidate={candidate} onMeasured={(audit) => setAudits((prev) => ({ ...prev, [key]: audit }))} />
+                          <CandidateScoreAction
+                            candidate={candidate}
+                            retained={candidate.dataId ? retainedHistories[candidate.dataId] ?? null : null}
+                            onScored={(score) => setScores((prev) => ({ ...prev, [key]: score }))}
+                            onQualified={onCandidateQualified}
+                          />
+                          <CandidateWebOpportunityAction
+                            candidate={candidate}
+                            retained={candidate.website ? retainedMeasurements[candidate.website] ?? null : null}
+                            onMeasured={(audit) => setAudits((prev) => ({ ...prev, [key]: audit }))}
+                          />
                         </li>
                       )
                     })}
                   </ul>
-                  <p className="notice">
-                    Raw discovery candidates with a G1/G2 quick screen from listing data alone (charter 9.1). Full
-                    qualification needs review-history retrieval and your judgment on G4–G6 — both per candidate,
-                    above. Ranking happens on the Shortlist view.
-                  </p>
                 </>
               )}
             </section>
@@ -287,12 +489,17 @@ export function OperatorWorkspace() {
               {!completed
                 ? <p className="notice">No search has been run yet. Start on the Search view.</p>
                 : <ShortlistView
-                    candidates={completed.candidates}
+                    candidates={visibleCandidates.map((v) => v.candidate)}
                     scores={scores}
                     audits={audits}
                     homeBase={homeBase}
                     selectedProspectId={selectedProspectId}
                     onSelect={(id) => { setSelectedProspectId(id); setView('prospect') }}
+                    retainedHistories={retainedHistories}
+                    retainedMeasurements={retainedMeasurements}
+                    onScored={(key, score) => setScores((prev) => ({ ...prev, [key]: score }))}
+                    onMeasured={(key, audit) => setAudits((prev) => ({ ...prev, [key]: audit }))}
+                    onQualified={onCandidateQualified}
                   />}
             </section>
           )}

@@ -19,7 +19,8 @@ Each reference must explain what should be learned or adopted from it. A referen
 
 | Reference | Useful element | What to avoid | Status |
 | --- | --- | --- | --- |
-| To be defined | — | — | Pending |
+| [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | A design-doctrine rulebook for AI coding agents (59 detector rules), not shippable code. Adopted into `buildDemonstrationSite` (DEC-114): one accent color capped to a small area of the page; a warm cream rather than pure-white background; fluid headline sizing via `clamp()`; no shadow at rest, a shadow only on hover; a written ban list (no colored side-borders on cards, no gradient text, no pure black/white) used as a review checklist. | Its actual deliverable — an `npx` CLI installer and an agent-skill runner. Nothing here is code to import; only the numeric/color rules are usable. | Adopted, DEC-114 |
+| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | A collection of AI-agent "skill" prompts for different visual directions, not shippable code. Adopted into `buildDemonstrationSite` (DEC-114): off-black rather than pure-black ink; tight letter-spacing on serif headings; muted, low-saturation tag-chip colors. | Its GSAP-driven motion system and Tailwind-based examples — neither fits a plain HTML/CSS, server-templated generator. | Adopted, DEC-114 |
 
 ## Provisional principles
 

@@ -35,10 +35,10 @@ contextBridge.exposeInMainWorld('horus', {
   discovery: {
     /** DEC-069. Spends a real SerpApi credit and retrieves real business data — unless DEC-077's cache already has a matching category+city search, in which case no credit is spent. Set forceRefresh to skip the cache. */
     run: (input: { category: string; city: string; maxExamined: number; forceRefresh?: boolean }) => ipcRenderer.invoke('discovery:run', input),
-    /** DEC-071. Spends further real SerpApi credits, up to one per page retrieved. */
-    fetchReviewHistory: (input: { dataId: string }) => ipcRenderer.invoke('discovery:fetch-review-history', input),
-    /** DEC-072. Spends a real PageSpeed quota unit and fetches the candidate's own site once. */
-    measureWebOpportunity: (input: { url: string }) => ipcRenderer.invoke('discovery:measure-web-opportunity', input),
+    /** DEC-071. Spends further real SerpApi credits, up to one per page retrieved — unless DEC-108's cache already holds this listing's review pages, in which case no credit is spent. Set forceRefresh to retrieve again anyway. */
+    fetchReviewHistory: (input: { dataId: string; forceRefresh?: boolean }) => ipcRenderer.invoke('discovery:fetch-review-history', input),
+    /** DEC-072, cached by DEC-117. Spends a real PageSpeed quota unit and fetches the candidate's own site once — unless this exact URL was already measured, in which case no credit is spent. Set forceRefresh to measure again anyway. */
+    measureWebOpportunity: (input: { url: string; forceRefresh?: boolean }) => ipcRenderer.invoke('discovery:measure-web-opportunity', input),
     /** DEC-074. Returns only a coordinate pair, or null — never the configured street address. */
     getHomeBaseCoordinates: () => ipcRenderer.invoke('discovery:home-base-coordinates'),
     /** DEC-078. Loads the URL in a hidden window and returns a PNG screenshot as a data URL. In-memory only; nothing is stored. */

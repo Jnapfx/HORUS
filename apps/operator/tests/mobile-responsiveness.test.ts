@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { assessMobileResponsiveness } from '../src/domain/mobile-responsiveness'
+import { assessMobileResponsiveness, MOBILE_AUDIT_IDS } from '../src/domain/mobile-responsiveness'
+import { MOBILE_AUDIT_IDS as IPC_MOBILE_AUDIT_IDS } from '../electron/web-opportunity-ipc'
 import { buildWebOpportunityAudit } from '../src/domain/web-opportunity-audit'
 
 /**
@@ -138,5 +139,70 @@ describe('DEC-097 — the pass threshold', () => {
       viewport: audit(0.9), 'content-width': audit(0.9), 'tap-targets': audit(0.9),
     }))
     expect(result).toMatchObject({ status: 'measured', value: 'fully-responsive' })
+  })
+})
+
+/**
+ * DEC-109. The three audits DEC-097 named were renamed or removed in
+ * Lighthouse 13, which the PageSpeed API now serves, so the factor read
+ * `unmeasured` on every real site. These cover the successors and the
+ * cross-version fallback.
+ */
+describe('reads the audits Lighthouse actually serves (DEC-109)', () => {
+  const lighthouse13 = (audits: Record<string, unknown>) => ({ lighthouseResult: { audits } })
+  const pass = { score: 1, scoreDisplayMode: 'binary', title: 'ok' }
+  const fail = { score: 0, scoreDisplayMode: 'binary', title: 'not ok' }
+
+  it('measures a Lighthouse 13 response, where viewport/content-width/tap-targets no longer exist', () => {
+    const result = assessMobileResponsiveness(lighthouse13({
+      'viewport-insight': { score: 1, scoreDisplayMode: 'numeric', title: 'Optimize viewport for mobile' },
+      'target-size': pass,
+      'meta-viewport': pass,
+    }))
+    expect(result.status).toBe('measured')
+    if (result.status !== 'measured') throw new Error('unreachable')
+    expect(result.value).toBe('fully-responsive')
+  })
+
+  it('reads a failing successor audit as the defect it is, not as an absent audit', () => {
+    const result = assessMobileResponsiveness(lighthouse13({
+      'viewport-insight': { score: 1, scoreDisplayMode: 'numeric', title: 'Optimize viewport for mobile' },
+      'target-size': fail,
+      'meta-viewport': pass,
+    }))
+    expect(result).toMatchObject({ status: 'measured', value: 'responsive-defective' })
+  })
+
+  it('treats a failing viewport-insight as not-responsive, the same as the old viewport audit', () => {
+    expect(assessMobileResponsiveness(lighthouse13({
+      'viewport-insight': { score: 0, scoreDisplayMode: 'numeric', title: 'Optimize viewport for mobile' },
+    }))).toMatchObject({ status: 'measured', value: 'not-responsive' })
+  })
+
+  it('still reads a pre-13 response, so retained calibration evidence keeps working', () => {
+    expect(assessMobileResponsiveness(lighthouse13({
+      viewport: pass, 'content-width': pass, 'tap-targets': fail,
+    }))).toMatchObject({ status: 'measured', value: 'responsive-defective' })
+  })
+
+  it('prefers the newest name when a response somehow carries both', () => {
+    const result = assessMobileResponsiveness(lighthouse13({
+      'viewport-insight': { score: 0, scoreDisplayMode: 'numeric', title: 'new' },
+      viewport: pass,
+    }))
+    expect(result).toMatchObject({ status: 'measured', value: 'not-responsive' })
+  })
+
+  it('stays unmeasured when no viewport audit under any name is present', () => {
+    expect(assessMobileResponsiveness(lighthouse13({ 'target-size': pass })).status).toBe('unmeasured')
+  })
+
+  /**
+   * The main process trims the Lighthouse response to a slice before it
+   * crosses IPC. If that slice and the slots disagree, the factor goes
+   * `unmeasured` for a reason no one would find by reading either file.
+   */
+  it('the IPC slice carries every audit id the slots may read', () => {
+    expect([...IPC_MOBILE_AUDIT_IDS].sort()).toEqual([...MOBILE_AUDIT_IDS].sort())
   })
 })

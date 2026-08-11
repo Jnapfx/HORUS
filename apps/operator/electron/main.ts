@@ -15,7 +15,8 @@ import { listIntegrationContracts } from './integrations/contracts.js'
 import { createHorusStore } from './persistence.js'
 import { publishDemonstrationSite, removeDemonstrationSite } from './publish-ipc.js'
 import { runReviewHistoryRetrieval } from './review-retrieval-ipc.js'
-import { runWebOpportunityMeasurement } from './web-opportunity-ipc.js'
+import { readAllRetainedRuns, readLatestRetainedRun } from './review-evidence.js'
+import { reconstructMeasurementFromSnapshots, runWebOpportunityMeasurement, type RawSnapshotRecord } from './web-opportunity-ipc.js'
 import { captureWebsiteScreenshot } from './website-screenshot.js'
 import { WorkflowStateRejected, acceptWorkflowState } from './workflow-state.js'
 
@@ -127,17 +128,24 @@ app.whenReady().then(() => {
   })
   // Review-history retrieval, the second real SerpApi surface (DEC-071),
   // paired with `discovery:run` above. Spends further real credits (one per
-  // page, up to the 3-page default). Returns raw isoDate/rating pairs only —
-  // scoring them against `reputation-scoring-v1` happens in the renderer,
-  // same layering as `screenListingGates` (DEC-070).
-  ipcMain.handle('discovery:fetch-review-history', async (_event, input: { dataId: string }) => {
+  // page, up to the 3-page default) — unless the pages are already retained,
+  // in which case DEC-108 serves those and spends nothing.
+  // Scoring against `reputation-scoring-v1` happens in the renderer, same
+  // layering as `screenListingGates` (DEC-070).
+  ipcMain.handle('discovery:fetch-review-history', async (_event, input: { dataId: string; forceRefresh?: boolean }) => {
     try {
-      const config = loadOperatorConfig(operatorConfigPath)
-      const apiKey = requireSerpApiKey(config)
+      const retainedPages = store.listRawSnapshotsBySource('serpapi.google_maps_reviews')
+      // The credential is read lazily: a cache hit must not fail because a key
+      // it was never going to use is missing.
+      const apiKey = input.forceRefresh || !readLatestRetainedRun(input.dataId, retainedPages)
+        ? requireSerpApiKey(loadOperatorConfig(operatorConfigPath))
+        : ''
       return await runReviewHistoryRetrieval({
         dataId: input.dataId,
         apiKey,
         appendRawSnapshot: (snapshot) => store.appendRawSnapshot(snapshot),
+        retainedPages,
+        forceRefresh: input.forceRefresh,
       })
     } catch (error) {
       const reason = error instanceof OperatorConfigMissing ? 'config_missing' : 'config_invalid'
@@ -148,7 +156,14 @@ app.whenReady().then(() => {
   // (DEC-072). Spends a real PageSpeed quota unit and makes one real fetch
   // of the candidate's own site. Only two of five `web-opportunity-v2`
   // factors are measurable this way; the rest stay `unmeasured` by design.
-  ipcMain.handle('discovery:measure-web-opportunity', async (_event, input: { url: string }) => {
+  //
+  // DEC-117. Unlike review-history retrieval, this had no cache at all until
+  // now — every press spent a fresh PageSpeed unit, even for a URL just
+  // measured, and nothing was restored on relaunch either. `findCachedSnapshots`
+  // is checked first (skipped when `forceRefresh` is set), matching the shape
+  // `discovery:run`'s DEC-077 cache and `discovery:fetch-review-history`'s
+  // DEC-108 cache already use.
+  ipcMain.handle('discovery:measure-web-opportunity', async (_event, input: { url: string; forceRefresh?: boolean }) => {
     try {
       const config = loadOperatorConfig(operatorConfigPath)
       const apiKey = requirePageSpeedApiKey(config)
@@ -156,6 +171,11 @@ app.whenReady().then(() => {
         url: input.url,
         pagespeedApiKey: apiKey,
         appendRawSnapshot: (snapshot) => store.appendRawSnapshot(snapshot),
+        forceRefresh: input.forceRefresh,
+        findCachedSnapshots: () => ({
+          pagespeed: store.listRawSnapshotsBySource('pagespeed.mobile'),
+          analysis: store.listRawSnapshotsBySource('horus.website-analysis'),
+        }),
       })
     } catch (error) {
       const reason = error instanceof OperatorConfigMissing ? 'config_missing' : 'config_invalid'
@@ -346,18 +366,32 @@ app.whenReady().then(() => {
   ipcMain.handle('session:restore', () => {
     const discoveries = store.listRawSnapshotsBySource('serpapi.google_maps')
     const latest = discoveries.length > 0 ? discoveries[discoveries.length - 1] : null
-    const reviewSnapshots = store.listRawSnapshotsBySource('serpapi.google_maps_reviews')
 
-    const histories = new Map<string, { reviews: unknown[]; retrievedAt: string; paginationExhausted: boolean }>()
-    for (const snapshot of reviewSnapshots) {
-      const payload = snapshot.payload as Record<string, unknown> | null
-      const dataId = (payload?.search_parameters as Record<string, unknown> | undefined)?.data_id
-      if (typeof dataId !== 'string') continue
-      const entry = histories.get(dataId) ?? { reviews: [], retrievedAt: snapshot.retrievedAt, paginationExhausted: false }
-      entry.reviews.push(...(Array.isArray(payload?.reviews) ? (payload!.reviews as unknown[]) : []))
-      entry.retrievedAt = snapshot.retrievedAt
-      entry.paginationExhausted = !(payload?.serpapi_pagination as Record<string, unknown> | undefined)?.next
-      histories.set(dataId, entry)
+    // DEC-108. The same reader the cache uses, so a restored session and a
+    // re-scored candidate cannot disagree about what the evidence says. It
+    // replays the most recent retrieval run per listing rather than
+    // concatenating every page ever retained — which counted a review once
+    // per time the operator had pressed the button, and raised the restored
+    // reputation score each time.
+    const reviewHistories = readAllRetainedRuns(store.listRawSnapshotsBySource('serpapi.google_maps_reviews'))
+
+    // DEC-117. Same reconstruction `discovery:measure-web-opportunity`'s own
+    // cache check uses, so a restored audit and a fresh cache hit cannot
+    // disagree about what a URL's retained evidence says. Closes the gap
+    // CLAUDE.md's own known-weaknesses list named: web-opportunity audits
+    // were not restored when the application reopened.
+    const pagespeedSnapshots: readonly RawSnapshotRecord[] = store.listRawSnapshotsBySource('pagespeed.mobile')
+    const analysisSnapshots: readonly RawSnapshotRecord[] = store.listRawSnapshotsBySource('horus.website-analysis')
+    const measuredUrls = new Set<string>()
+    for (const snapshot of [...pagespeedSnapshots, ...analysisSnapshots]) {
+      const request = snapshot.request
+      const targetUrl = typeof request === 'object' && request !== null ? (request as Record<string, unknown>).targetUrl : null
+      if (typeof targetUrl === 'string' && targetUrl) measuredUrls.add(targetUrl)
+    }
+    const webOpportunityMeasurements: Record<string, ReturnType<typeof reconstructMeasurementFromSnapshots>> = {}
+    for (const url of measuredUrls) {
+      const measurement = reconstructMeasurementFromSnapshots(url, pagespeedSnapshots, analysisSnapshots)
+      if (measurement) webOpportunityMeasurements[url] = measurement
     }
 
     // Candidates are extracted here, from the retained payload, rather than
@@ -373,7 +407,8 @@ app.whenReady().then(() => {
             candidates: extractCandidatesForRestore(latest.payload),
           }
         : null,
-      reviewHistories: Object.fromEntries(histories),
+      reviewHistories,
+      webOpportunityMeasurements,
     }
   })
   // DEC-096. DEC-031 exempts an engaged prospect from the 60-day removal

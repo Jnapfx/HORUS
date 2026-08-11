@@ -6,7 +6,7 @@ export type PageSpeedRequestPlan = {
   source: 'pagespeed.mobile'
   method: 'GET'
   endpoint: 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
-  query: Record<string, string>
+  query: Record<string, string | readonly string[]>
   credentialRequirement: 'pagespeed_api_key'
   rawEvidenceRequired: true
 }
@@ -22,6 +22,20 @@ export function buildPageSpeedMobilePlan(input: PageSpeedMeasurementInput): Page
     query: {
       url: url.toString(),
       strategy: 'mobile',
+      /**
+       * DEC-109. Without `category`, PageSpeed returns the performance
+       * category alone — 47 audits, none of them `viewport`, `content-width`
+       * or `tap-targets`. DEC-097 read those three to measure mobile
+       * responsiveness, `web-opportunity-v2`'s largest factor at 30 of 100
+       * points, on the premise that "every PageSpeed call returns a full
+       * mobile Lighthouse run". It does not, and the factor came back
+       * `unmeasured` on the first real site it was pointed at.
+       *
+       * These are requested by name rather than by taking whatever the
+       * default gives, so a future reader can see which categories the model
+       * actually depends on. Still one request, still one quota unit.
+       */
+      category: ['performance', 'seo', 'accessibility', 'best-practices'],
     },
     credentialRequirement: 'pagespeed_api_key',
     rawEvidenceRequired: true,
@@ -49,7 +63,12 @@ export async function executePageSpeedMobile(
   const plan = buildPageSpeedMobilePlan(input)
 
   const provenanceUrl = new URL(plan.endpoint)
-  Object.entries(plan.query).forEach(([key, value]) => provenanceUrl.searchParams.set(key, value))
+  // `category` is repeated, not comma-joined — the PageSpeed API takes one
+  // parameter per category and silently ignores a joined value.
+  Object.entries(plan.query).forEach(([key, value]) => {
+    if (Array.isArray(value)) value.forEach((entry) => provenanceUrl.searchParams.append(key, entry))
+    else provenanceUrl.searchParams.set(key, value as string)
+  })
   const executedUrl = new URL(provenanceUrl)
   executedUrl.searchParams.set('key', input.apiKey)
   provenanceUrl.searchParams.set('key', PAGESPEED_CREDENTIAL_PLACEHOLDER)
