@@ -4,13 +4,13 @@ import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { assessProximity, type Coordinates } from '../domain/proximity'
 import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import { CandidateScoreAction, CandidateWebOpportunityAction } from './CandidateActions'
-import { auditCandidateFromMeasurement, scoreCandidateFromHistory } from './candidate-scoring'
+import { auditCandidateFromMeasurement, buildCandidateEvidenceReferences, scoreCandidateFromHistory } from './candidate-scoring'
 import { ShortlistView } from './ShortlistView'
 import { ProspectRecord, type ProspectSection } from './ProspectRecord'
 import { RealTrackerPanel } from './RealTrackerPanel'
 import { AnalystPanel } from './AnalystPanel'
 import { RepresentativeWorkflow } from './RepresentativeWorkflow'
-import type { DiscoveryRunResult, RestoredReviewHistory, RestoredWebOpportunityMeasurement } from './types'
+import type { AnalystRunResult, DiscoveryRunResult, RestoredReviewHistory, RestoredWebOpportunityMeasurement } from './types'
 
 /**
  * DEC-102. The operator workspace: FUNCTIONAL_DESIGN §6's six named views,
@@ -74,6 +74,16 @@ export function OperatorWorkspace() {
   const [prescreening, setPrescreening] = useState(false)
   const [prescreenProgress, setPrescreenProgress] = useState<{ done: number; total: number } | null>(null)
   const [prescreenErrors, setPrescreenErrors] = useState<readonly string[]>([])
+  // DEC-127's follow-up. The opportunity analyst's first real use in the
+  // actual workflow (DEC-099 placed it outside V1's critical path pending
+  // SECURITY_REVIEW.md finding F4, which DEC-127 closed). A single
+  // operator-triggered batch, not a background process — the operator chose
+  // "un botón único" over running automatically after every search.
+  const [analystResults, setAnalystResults] = useState<Record<string, AnalystRunResult>>({})
+  const [analyzeConfirmed, setAnalyzeConfirmed] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number } | null>(null)
+  const [analyzeErrors, setAnalyzeErrors] = useState<readonly string[]>([])
 
   const [restoring, setRestoring] = useState(true)
   const [retainedHistories, setRetainedHistories] = useState<Record<string, RestoredReviewHistory>>({})
@@ -155,6 +165,12 @@ export function OperatorWorkspace() {
         setResult(outcome as unknown as DiscoveryRunResult)
         setRetainedHistories(session.reviewHistories)
         setRetainedMeasurements(session.webOpportunityMeasurements)
+        // DEC-126. The operator's own request: the selected prospect stays
+        // selected across a full app restart, not just within the running
+        // session. Set directly from the restored value, not through
+        // `selectProspect` — writing it straight back to the same store it
+        // was just read from would be a pointless round trip on every launch.
+        if (session.selectedProspectId) setSelectedProspectId(session.selectedProspectId)
 
         // DEC-117. Eagerly compute every restorable score and audit — see
         // this effect's own comment above for why this now happens here
@@ -298,6 +314,75 @@ export function OperatorWorkspace() {
     .filter(({ key }) => !dismissedIds.has(key))
 
   /**
+   * DEC-127's follow-up. Runs the existing, unchanged `opportunity_analyst`
+   * (DEC-049, DEC-065) once per already-scored candidate — every candidate
+   * that has a retained reputation score, the same population "Auto-screen"
+   * already produced. Sequential, not parallel: HORUS begins with a single
+   * execution queue for Claude Code (`AGENT_ARCHITECTURE.md` §7), and running
+   * one candidate at a time means a Claude Code failure partway through
+   * (unavailable, rate-limited) leaves every candidate completed so far with
+   * its result intact, not lost as part of a batch.
+   *
+   * The analyst is unchanged and still bounded by every rule in
+   * `AGENT_ARCHITECTURE.md` §5: it computes no score, proposes no contact,
+   * and this function saves nothing to workflow state. `runOpportunityAnalyst`
+   * (`analyst-ipc.ts`) already persists each result as a draft on the main
+   * process's side (DEC-067) — this only keeps a copy in memory so the
+   * Shortlist can show it next to the deterministic score, exactly the
+   * output `AnalystPanel` already rendered, just attached to the candidate
+   * the operator is actually looking at instead of a separate experimental
+   * view.
+   */
+  const runAnalystForCandidates = async () => {
+    if (!completed) return
+    const targets = visibleCandidates.filter(({ key }) => Boolean(scores[key]))
+    setAnalyzing(true)
+    setAnalyzeErrors([])
+    setAnalyzeProgress({ done: 0, total: targets.length })
+
+    const errors: string[] = []
+    for (const { candidate, key } of targets) {
+      const label = candidate.name ?? key
+      const evidence = buildCandidateEvidenceReferences({
+        discoverySnapshotId: completed.snapshotId,
+        discoveryRetrievedAt: completed.retrievedAt,
+        reviewHistory: candidate.dataId ? retainedHistories[candidate.dataId] ?? null : null,
+        webOpportunityMeasurement: candidate.website ? retainedMeasurements[candidate.website] ?? null : null,
+      })
+
+      try {
+        const outcome = await window.horus?.agent.runAnalyst([...evidence])
+        if (outcome) setAnalystResults((prev) => ({ ...prev, [key]: outcome }))
+        if (outcome?.status === 'failed') errors.push(`${label}: ${outcome.reason} — ${outcome.detail}`)
+      } catch (err) {
+        errors.push(`${label}: ${err instanceof Error ? err.message : 'the analyst task was rejected'}`)
+      }
+
+      setAnalyzeProgress((prev) => (prev ? { done: prev.done + 1, total: prev.total } : prev))
+    }
+
+    setAnalyzeErrors(errors)
+    setAnalyzing(false)
+  }
+
+  /**
+   * DEC-126. The operator's own request: the selected prospect should "quede
+   * guardado hasta que avance asi cierre la app" — stay selected across an
+   * app restart, not just within the running session (`selectedProspectId`
+   * itself is only ever in memory). Every place that changes the selection —
+   * qualifying a candidate, picking one on the Shortlist, or clearing it —
+   * goes through this one function so persisting it can never be missed at
+   * one of those call sites. The write is fire-and-forget: navigation itself
+   * does not wait on it, since it is not a consequential action requiring
+   * confirmation (DEC-004 gates are unaffected either way), only a durability
+   * improvement over what was already happening in memory.
+   */
+  const selectProspect = (dataId: string | null) => {
+    setSelectedProspectId(dataId)
+    void window.horus?.prospect.setSelected({ dataId })
+  }
+
+  /**
    * DEC-113. The operator's own request: the moment recording a judgment is
    * what makes a candidate qualified, it should become the selected prospect
    * and stay there — not require a separate trip to the Shortlist to press
@@ -308,8 +393,22 @@ export function OperatorWorkspace() {
    * press that recorded the judgment instead of a second one.
    */
   const onCandidateQualified = (dataId: string) => {
-    setSelectedProspectId(dataId)
+    selectProspect(dataId)
     setView('prospect')
+  }
+
+  // DEC-126. The operator's own request, from the Shortlist: a single button
+  // to clear every candidate from this list at once, instead of removing them
+  // one at a time. Reuses the same `dismissedIds` display filter the
+  // per-candidate "Remove" button already writes to (DEC-112) — this never
+  // touches retained evidence, only what is shown; "Restore all" on the
+  // Search view already undoes it.
+  const clearShortlist = () => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev)
+      for (const { key } of visibleCandidates) next.add(key)
+      return next
+    })
   }
 
   const prospectSection: ProspectSection =
@@ -432,6 +531,48 @@ export function OperatorWorkspace() {
                       </div>
                     )}
                   </div>
+                  {/* DEC-127's follow-up. The agent analyst's first real use in
+                      the actual workflow (DEC-099 kept it outside V1's
+                      critical path until F4 closed). Placed after Auto-screen
+                      because it reads what Auto-screen already retrieved —
+                      running it on an unscored candidate would have nothing
+                      to attach evidence to. Its output is read-only and never
+                      qualifies, ranks, or approves anything (AGENT_ARCHITECTURE
+                      §5); results show on the Shortlist next to each
+                      candidate's score. */}
+                  <div className="gate-zone">
+                    <h4>Analyze candidates (agent, experimental)</h4>
+                    <details className="explainer">
+                      <summary>What this does</summary>
+                      <p className="notice">
+                        Runs the opportunity analyst (a bounded, read-only Claude Code task — AGENT_ARCHITECTURE.md) once
+                        for every already-scored candidate, over exactly the evidence already retrieved for it. It reports
+                        observations and which candidates it thinks are worth your review, always citing the evidence
+                        behind each claim. It computes <strong>no score</strong>, proposes <strong>no contact</strong>, and
+                        cannot qualify, rank, or approve anything — G4–G6 and both DEC-004 gates remain entirely yours.
+                      </p>
+                    </details>
+                    <label className="confirm-spend">
+                      <input type="checkbox" checked={analyzeConfirmed} onChange={(e) => setAnalyzeConfirmed(e.target.checked)} />
+                      {' '}I understand this runs a local Claude Code task per scored candidate, using this Claude
+                      subscription's own usage limit — not a SerpApi or PageSpeed credit.
+                    </label>
+                    <button onClick={() => void runAnalystForCandidates()} disabled={!analyzeConfirmed || analyzing || visibleCandidates.every(({ key }) => !scores[key])}>
+                      {analyzing
+                        ? `Analyzing… ${analyzeProgress ? `${analyzeProgress.done}/${analyzeProgress.total}` : ''}`
+                        : 'Analyze candidates'}
+                    </button>
+                    {!analyzeConfirmed && <p className="control-hint">Blocked: acknowledge the usage cost above before this can be used.</p>}
+                    {visibleCandidates.every(({ key }) => !scores[key]) && (
+                      <p className="control-hint">Score at least one candidate above (or run Auto-screen) before there is anything for the analyst to read.</p>
+                    )}
+                    {analyzeErrors.length > 0 && (
+                      <div className="error" role="alert">
+                        <strong>{analyzeErrors.length} candidate(s) could not be analyzed; the rest completed.</strong>
+                        <ul className="checklist">{analyzeErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                      </div>
+                    )}
+                  </div>
                   <h3>Candidates ({visibleCandidates.length}{visibleCandidates.length !== completed.candidateCount ? ` of ${completed.candidateCount}` : ''})</h3>
                   {dismissedIds.size > 0 && (
                     <p className="control-hint">
@@ -494,12 +635,14 @@ export function OperatorWorkspace() {
                     audits={audits}
                     homeBase={homeBase}
                     selectedProspectId={selectedProspectId}
-                    onSelect={(id) => { setSelectedProspectId(id); setView('prospect') }}
+                    onSelect={(id) => { selectProspect(id); setView('prospect') }}
                     retainedHistories={retainedHistories}
                     retainedMeasurements={retainedMeasurements}
                     onScored={(key, score) => setScores((prev) => ({ ...prev, [key]: score }))}
                     onMeasured={(key, audit) => setAudits((prev) => ({ ...prev, [key]: audit }))}
                     onQualified={onCandidateQualified}
+                    onClearAll={clearShortlist}
+                    analystResults={analystResults}
                   />}
             </section>
           )}
@@ -532,7 +675,22 @@ export function OperatorWorkspace() {
               scores={scores}
               audits={audits}
               homeBase={homeBase}
-              onClear={() => { setSelectedProspectId(null); setView('shortlist') }}
+              onClear={() => { selectProspect(null); setView('shortlist') }}
+              // DEC-129. The same assembly the Shortlist's "Analyze candidates"
+              // button already uses (DEC-128) — this prospect's own retained
+              // evidence, and nothing the deterministic score itself lacks.
+              evidenceReferences={buildCandidateEvidenceReferences({
+                discoverySnapshotId: completed.snapshotId,
+                discoveryRetrievedAt: completed.retrievedAt,
+                reviewHistory: (() => {
+                  const dataId = completed.candidates.find((c, i) => (c.dataId ?? `index-${i}`) === selectedProspectId)?.dataId
+                  return dataId ? retainedHistories[dataId] ?? null : null
+                })(),
+                webOpportunityMeasurement: (() => {
+                  const website = completed.candidates.find((c, i) => (c.dataId ?? `index-${i}`) === selectedProspectId)?.website
+                  return website ? retainedMeasurements[website] ?? null : null
+                })(),
+              })}
             />
           )}
 

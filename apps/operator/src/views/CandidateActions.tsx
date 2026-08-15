@@ -5,13 +5,71 @@ import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { findRecordedJudgment, type JudgmentEvent } from '../domain/judgment-log'
 import {
   emptyJudgment,
-  findJudgmentProblems,
-  isJudgmentComplete,
-  JUDGMENT_GATES,
   type OperatorJudgmentDraft,
 } from '../domain/operator-judgment'
 import { auditCandidateFromMeasurement, scoreCandidateFromHistory } from './candidate-scoring'
 import type { CandidateSummary, RestoredReviewHistory, RestoredWebOpportunityMeasurement, ReviewHistoryResult, WebOpportunityMeasurementResult } from './types'
+
+/**
+ * DEC-136. The operator asked directly for the three charter 9.5 gates
+ * (G4 complaint pattern, G5 operational status, G6 listing identity) to stop
+ * appearing as three separate controls: "esas opciones no me interesan que
+ * aparezcan. pon todo en 1 sola opcion." DEC-091 had considered and rejected
+ * exactly this — a single checkbox "records no rationale" — because the three
+ * questions carry different consequences. Told that plainly, with the
+ * tradeoff spelled out, the operator chose to merge them anyway.
+ *
+ * This keeps `operator-judgment.ts` and `reputation-scoring.ts` completely
+ * untouched — the three-field domain shape, `buildReputationScore`'s three
+ * gates, and every test on both still describe exactly what they described
+ * before. Only this view's presentation changes: one control writes to all
+ * three fields at once. "Sí" sets all three to their passing verdict. "No"
+ * sets only `complaintPattern` to its failing verdict — enough on its own to
+ * keep the candidate unqualified — and leaves the other two `insufficient_data`
+ * rather than fabricating a specific reason for them, since a merged "no"
+ * answer genuinely does not say which of the three was the problem. That loss
+ * — no record of *why* a "no" was a no, and no per-gate breakdown when a
+ * judgment fails — is exactly the cost DEC-091 named. The operator was told
+ * that cost and accepted it.
+ */
+type SingleJudgmentVerdict = 'unassessed' | 'yes' | 'no'
+
+const SINGLE_JUDGMENT_EVIDENCE_YES =
+  'Recorded via the single merged qualification question (DEC-136): the operator answered yes, covering G4, G5 and G6 at once.'
+const SINGLE_JUDGMENT_EVIDENCE_NO =
+  'Recorded via the single merged qualification question (DEC-136): the operator answered no. Which of G4 (complaint pattern), G5 (operational status) or G6 (listing identity) specifically failed was not captured separately.'
+
+function draftFromSingleVerdict(verdict: SingleJudgmentVerdict): OperatorJudgmentDraft {
+  if (verdict === 'yes') {
+    return {
+      complaintPattern: { verdict: 'none_found', rationale: SINGLE_JUDGMENT_EVIDENCE_YES },
+      operationalStatus: { verdict: 'active', rationale: SINGLE_JUDGMENT_EVIDENCE_YES },
+      listingIdentity: { verdict: 'confirmed', rationale: SINGLE_JUDGMENT_EVIDENCE_YES },
+    }
+  }
+  if (verdict === 'no') {
+    return {
+      complaintPattern: { verdict: 'pattern_found', rationale: SINGLE_JUDGMENT_EVIDENCE_NO },
+      operationalStatus: { verdict: 'insufficient_data', rationale: '' },
+      listingIdentity: { verdict: 'insufficient_data', rationale: '' },
+    }
+  }
+  return emptyJudgment()
+}
+
+function singleVerdictFromDraft(draft: OperatorJudgmentDraft): SingleJudgmentVerdict {
+  const allYes =
+    draft.complaintPattern.verdict === 'none_found' &&
+    draft.operationalStatus.verdict === 'active' &&
+    draft.listingIdentity.verdict === 'confirmed'
+  if (allYes) return 'yes'
+  const anyNo =
+    draft.complaintPattern.verdict === 'pattern_found' ||
+    draft.operationalStatus.verdict === 'closed_or_permanently_closed' ||
+    draft.listingIdentity.verdict === 'mismatch'
+  if (anyNo) return 'no'
+  return 'unassessed'
+}
 
 /**
  * DEC-071, extended by DEC-091. Per candidate: retrieves real review history
@@ -212,7 +270,7 @@ export function CandidateScoreAction({ candidate, retained, onScored, onQualifie
       {historyResult?.status === 'failed' && <div className="error" role="alert"><strong>Retrieval failed: {historyResult.reason}</strong><p>{historyResult.detail}</p></div>}
       {retrieved && (
         <div className="gate-zone">
-          <h4>Operator judgment — charter 9.5 gates G4, G5, G6</h4>
+          <h4>Operator judgment — charter 9.5 (G4/G5/G6, asked as one question — DEC-136)</h4>
 
           {/* DEC-105. The reviews themselves, next to the questions about
               them. Worst rating first, because G4 asks about a pattern of
@@ -251,50 +309,32 @@ export function CandidateScoreAction({ candidate, retained, onScored, onQualifie
             </ul>
           </details>
           <p className="notice">
-            These three cannot be computed from evidence; they are yours to decide (DEC-008). Until all three are
-            answered, this candidate cannot qualify, cannot be ranked on the shortlist, and cannot be selected as a
-            prospect. Leaving one unanswered is a valid, honest state — it just does not open the gate. Answering one
-            requires saying what you saw, and rescoring costs nothing: it reuses the review history already retrieved.
+            This cannot be computed from evidence; it is yours to decide (DEC-008). Until you answer, this candidate
+            cannot qualify, cannot be ranked on the shortlist, and cannot be selected as a prospect. Leaving it
+            unanswered is a valid, honest state — it just does not open the gate. Rescoring costs nothing: it reuses
+            the review history already retrieved.
           </p>
-          {JUDGMENT_GATES.map((gate) => {
-            const entry = judgment[gate.field]
-            return (
-              <div key={gate.id} className="judgment-gate">
-                <label>
-                  {gate.id} — {gate.question}
-                  <select
-                    value={entry.verdict}
-                    onChange={(event) =>
-                      applyJudgment({ ...judgment, [gate.field]: { ...entry, verdict: event.target.value } } as OperatorJudgmentDraft)
-                    }
-                  >
-                    {gate.options.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
-                {entry.verdict !== 'insufficient_data' && (
-                  <label>
-                    What did you see that supports this? (required)
-                    <input
-                      value={entry.rationale}
-                      onChange={(event) =>
-                        applyJudgment({ ...judgment, [gate.field]: { ...entry, rationale: event.target.value } } as OperatorJudgmentDraft)
-                      }
-                      placeholder="e.g. read the 20 most recent reviews; no unresolved complaints"
-                    />
-                  </label>
-                )}
-              </div>
-            )
-          })}
+          <div className="judgment-gate">
+            <label>
+              Based on what you just read — reviews, complaint pattern, whether it's still open, whether this
+              listing is really this business — does this candidate check out?
+              <select
+                value={singleVerdictFromDraft(judgment)}
+                onChange={(event) => applyJudgment(draftFromSingleVerdict(event.target.value as SingleJudgmentVerdict))}
+              >
+                <option value="unassessed">Not assessed yet</option>
+                <option value="yes">Sí, checks out</option>
+                <option value="no">No, it doesn't</option>
+              </select>
+            </label>
+          </div>
           {/* DEC-094. Recording is a deliberate act with its own control, not a
               side effect of typing — the same shape as every other consequential
               action in this application. */}
           <div className="button-row">
             <button
               className="secondary"
-              disabled={recording || findJudgmentProblems(judgment).length > 0}
+              disabled={recording}
               onClick={() => {
                 if (!candidate.dataId) return
                 setRecording(true)
@@ -302,14 +342,21 @@ export function CandidateScoreAction({ candidate, retained, onScored, onQualifie
                   .record({ listingId: candidate.dataId, judgment })
                   .then((result) => {
                     setRecorded({ occurredAt: result.occurredAt, revision: (recorded?.revision ?? 0) + 1 })
-                    // DEC-113. `score` here is the one already recomputed
-                    // in-browser from this exact judgment (`applyJudgment`,
-                    // above) — the write above just makes it durable. Firing
-                    // on that recompute would fire on every keystroke; this
-                    // only fires once the operator has actually pressed the
-                    // button that records it.
-                    if (score?.qualified && candidate.dataId) onQualified?.(candidate.dataId)
+                    // DEC-125. DEC-113 read the `score` state variable here
+                    // instead of recomputing — correct in every case reasoned
+                    // through by hand, but the operator reported it not
+                    // firing on a real run with no way to tell why from
+                    // source alone. Recomputing directly from `retrieved` and
+                    // `judgment` (the same two values `score` is itself
+                    // derived from, and both read straight from state rather
+                    // than a third derived variable) removes that one degree
+                    // of indirection as a possible cause, whatever it was.
+                    const justRecorded = retrieved
+                      ? scoreWith(retrieved.reviews, retrieved.retrievedAt, retrieved.paginationExhausted, judgment)
+                      : score
+                    if (justRecorded?.qualified && candidate.dataId) onQualified?.(candidate.dataId)
                   })
+                  .catch((err: unknown) => setError(err instanceof Error ? err.message : 'The judgment could not be recorded.'))
                   .finally(() => setRecording(false))
               }}
             >
@@ -322,12 +369,9 @@ export function CandidateScoreAction({ candidate, retained, onScored, onQualifie
               {recorded.revision > 1 ? ` — revision ${recorded.revision}; earlier judgments stay in the log` : ''}.
             </p>
           )}
-          {findJudgmentProblems(judgment).map((problem) => (
-            <p key={problem.gate} className="control-hint">{problem.problem}</p>
-          ))}
-          {!isJudgmentComplete(judgment) && findJudgmentProblems(judgment).length === 0 && (
+          {singleVerdictFromDraft(judgment) === 'unassessed' && (
             <p className="control-hint">
-              Not all three gates are answered. This candidate stays unqualified, which is correct — not a failure.
+              Not answered yet. This candidate stays unqualified, which is correct — not a failure.
             </p>
           )}
         </div>

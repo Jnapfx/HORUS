@@ -113,7 +113,12 @@ describe('bounded agent task', () => {
     expect(mcpConfig.mcpServers['horus-evidence']).toMatchObject({
       command: 'node',
       args: ['/app/build/electron/agent/evidence-mcp-server.js'],
-      env: { HORUS_DATABASE_PATH: '/app/data/horus.sqlite' },
+      env: {
+        HORUS_DATABASE_PATH: '/app/data/horus.sqlite',
+        // DEC-127. The server needs this task's own evidence ids to scope
+        // inspect_public_website_readonly's hostname allowlist (F4).
+        HORUS_TASK_EVIDENCE_IDS: 'raw_1,raw_2',
+      },
     })
 
     const allowedToolsIndex = args.indexOf('--allowedTools')
@@ -128,6 +133,30 @@ describe('bounded agent task', () => {
       'mcp__horus-evidence__inspect_public_website_readonly',
       'mcp__horus-evidence__read_evidence_snapshot',
     ])
+  })
+
+  it('carries a fresh HORUS_TASK_EVIDENCE_IDS per task, even from the same reused wiring (DEC-127)', () => {
+    // main.ts builds `evidenceTools` once and reuses it across every call to
+    // agent:analyst:run; this is what proves the per-task value in the MCP
+    // env is still recomputed on each buildClaudeCodeArgs call, not baked
+    // into the wiring at construction time.
+    const wiring = createEvidenceToolWiring({
+      serverScriptPath: '/app/build/electron/agent/evidence-mcp-server.js',
+      databasePath: '/app/data/horus.sqlite',
+    })
+    const otherTask = task({
+      taskId: 'task_2',
+      evidence: [{ snapshotId: 'raw_9', source: 'serpapi', retrievedAt: '2026-08-07T12:00:00.000Z' }],
+    })
+
+    const firstArgs = buildClaudeCodeArgs(task(), wiring)
+    const secondArgs = buildClaudeCodeArgs(otherTask, wiring)
+
+    const envFor = (args: readonly string[]) =>
+      JSON.parse(args[args.indexOf('--mcp-config') + 1] as string).mcpServers['horus-evidence'].env
+
+    expect(envFor(firstArgs).HORUS_TASK_EVIDENCE_IDS).toBe('raw_1,raw_2')
+    expect(envFor(secondArgs).HORUS_TASK_EVIDENCE_IDS).toBe('raw_9')
   })
 
   it('grants nothing for a wired server if the task never named the tool', () => {
@@ -166,6 +195,27 @@ describe('bounded agent task', () => {
     expect(classifyFailure({ code: 127, stdout: '', stderr: 'command not found' })?.reason).toBe('runtime_not_installed')
     expect(classifyFailure({ code: 1, stdout: '', stderr: 'You are not logged in' })?.reason).toBe('authentication_required')
     expect(classifyFailure({ code: 1, stdout: '', stderr: 'Usage limit reached' })?.reason).toBe('usage_limit_reached')
+  })
+
+  // DEC-132. A bare "The runtime exceeded its time limit." with nothing else
+  // gave no way to tell an MCP server that failed to start from Claude Code
+  // itself being slow — a real "Compose failed: timeout" report with no
+  // further detail. Whatever the subprocess wrote before it was killed is now
+  // carried into `detail`.
+  it('carries captured stdout/stderr into a timeout detail, so a real cause is not discarded', () => {
+    const result = classifyFailure({
+      code: null,
+      stdout: '',
+      stderr: 'Error: MCP server "horus-evidence" failed to start: connect ECONNREFUSED',
+      timedOut: true,
+    })
+    expect(result?.reason).toBe('timeout')
+    expect(result?.detail).toContain('MCP server "horus-evidence" failed to start')
+  })
+
+  it('says plainly when a timeout captured no output at all', () => {
+    const result = classifyFailure({ code: null, stdout: '', stderr: '', timedOut: true })
+    expect(result?.detail).toContain('No output was captured')
   })
 
   it('detects a failure reported on stdout despite a zero exit code', () => {

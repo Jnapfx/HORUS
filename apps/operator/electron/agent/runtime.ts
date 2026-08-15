@@ -31,7 +31,11 @@
  * `.claude/` directory, hooks, or plugins.
  */
 
-export type AgentRole = 'opportunity_analyst' | 'concept_composer' | 'outreach_composer'
+// DEC-131 added 'qualification_agent' and 'qa_reviewer' — the two remaining
+// roles `docs/ORCHESTRATOR_GAP_ANALYSIS.md` identified as missing to run the
+// Orchestrator's automated pipeline. 'outreach_composer' remains declared but
+// unimplemented (DEC-081 keeps outreach deterministic; out of scope here).
+export type AgentRole = 'opportunity_analyst' | 'concept_composer' | 'outreach_composer' | 'qualification_agent' | 'qa_reviewer'
 
 /** Section 9. Every state a run can end in other than a reviewable result. */
 export type AgentFailureReason =
@@ -216,9 +220,20 @@ function buildMcpConfigArgs(task: BoundedAgentTask, wiring: McpServerWiring | un
     .filter((name): name is string => name !== undefined)
   if (allowed.length === 0) return []
 
+  // DEC-127. HORUS_TASK_EVIDENCE_IDS carries *this* task's own evidence ids
+  // into the MCP server's environment, freshly on every run — `wiring` itself
+  // is built once and reused (see main.ts), but the server process Claude
+  // Code spawns from this config is not. The server uses these ids to scope
+  // `inspect_public_website_readonly` to hostnames found in this task's own
+  // evidence (SECURITY_REVIEW.md finding F4), never the whole database.
+  const taskEvidenceIds = task.evidence.map((reference) => reference.snapshotId).join(',')
   const mcpConfig = {
     mcpServers: {
-      [wiring.serverName]: { command: wiring.command, args: [...wiring.args], env: { ...wiring.env } },
+      [wiring.serverName]: {
+        command: wiring.command,
+        args: [...wiring.args],
+        env: { ...wiring.env, HORUS_TASK_EVIDENCE_IDS: taskEvidenceIds },
+      },
     },
   }
   return ['--mcp-config', JSON.stringify(mcpConfig), '--allowedTools', allowed.join(',')]
@@ -258,9 +273,29 @@ export function buildClaudeCodeArgs(task: BoundedAgentTask, evidenceTools?: McpS
  *
  * The specific error wording is still not verified against a live run.
  */
+/**
+ * DEC-132. `classifyFailure` used to report a `timeout` as a bare "The
+ * runtime exceeded its time limit.", discarding whatever the subprocess had
+ * already written to stdout/stderr before it was killed — the one place a
+ * genuine cause (an MCP server that failed to start, a permission prompt
+ * Claude Code was silently waiting on, a stack trace) would actually show up.
+ * A live "Compose failed: timeout" report with no further detail to go on is
+ * exactly the failure mode this was blind to. `excerpt` appends whatever was
+ * captured, trimmed to a readable length, to every failure branch's detail —
+ * not just timeout — so the next failure of any kind carries its own
+ * evidence instead of a generic label.
+ */
+function excerpt(result: SpawnResult): string {
+  const combined = [result.stderr, result.stdout].filter((s) => s.trim().length > 0).join('\n---\n').trim()
+  if (!combined) return ' No output was captured before the runtime ended.'
+  const MAX = 800
+  const tail = combined.length > MAX ? `…${combined.slice(-MAX)}` : combined
+  return ` Last output:\n${tail}`
+}
+
 export function classifyFailure(result: SpawnResult): { reason: AgentFailureReason; detail: string } | null {
-  if (result.timedOut) return { reason: 'timeout', detail: 'The runtime exceeded its time limit.' }
-  if (result.code === 143) return { reason: 'cancelled', detail: 'The runtime was terminated before completing.' }
+  if (result.timedOut) return { reason: 'timeout', detail: `The runtime exceeded its time limit.${excerpt(result)}` }
+  if (result.code === 143) return { reason: 'cancelled', detail: `The runtime was terminated before completing.${excerpt(result)}` }
 
   const text = `${result.stderr}\n${result.stdout}`.toLowerCase()
   const authFailed = text.includes('not logged in') || text.includes('authentication_failed')
@@ -276,11 +311,11 @@ export function classifyFailure(result: SpawnResult): { reason: AgentFailureReas
   }
 
   if (text.includes('command not found') || text.includes('enoent')) {
-    return { reason: 'runtime_not_installed', detail: 'Claude Code was not found on this machine.' }
+    return { reason: 'runtime_not_installed', detail: `Claude Code was not found on this machine.${excerpt(result)}` }
   }
   if (authFailed) return { reason: 'authentication_required', detail: 'Claude Code requires a valid local login.' }
   if (limited) return { reason: 'usage_limit_reached', detail: 'The subscription usage limit was reached.' }
-  return { reason: 'invalid_output', detail: `The runtime exited with code ${result.code}.` }
+  return { reason: 'invalid_output', detail: `The runtime exited with code ${result.code}.${excerpt(result)}` }
 }
 
 /**

@@ -144,7 +144,7 @@ describe('DEC-083 token palette — non-text UI (WCAG 1.4.11)', () => {
 describe('DEC-083 rule 6 — the demonstration shares no tokens with this interface', () => {
   it('keeps the operator interface dark and the demonstration generator light', () => {
     const demonstration = readFileSync(
-      fileURLToPath(new URL('../src/domain/demonstration.ts', import.meta.url)),
+      fileURLToPath(new URL('../shared/demonstration.ts', import.meta.url)),
       'utf8',
     )
     expect(css).toContain('color-scheme: dark')

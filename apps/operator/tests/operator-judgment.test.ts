@@ -42,23 +42,34 @@ describe('DEC-091 — the default never opens a gate', () => {
   })
 })
 
-describe('DEC-091 — a verdict without a reason is not a judgment', () => {
+/**
+ * DEC-124 superseded this block's original premise (DEC-091's rule 2: "a
+ * verdict without a reason is not a judgment"). The operator asked directly
+ * for the written-rationale requirement to be removed ("quitale lo de
+ * escribir algo obligado. que no sea obligatorio."); DEC-124's own
+ * consequences section claimed no test asserted the old throw-on-missing-
+ * rationale behavior, which was wrong — this block did, and kept failing
+ * against the new code until corrected here. DEC-091's rule 1, that an
+ * unanswered gate never counts as a pass, is untouched and stays covered by
+ * the describe block above.
+ */
+describe('DEC-124 — a verdict without a written rationale is still a recorded judgment', () => {
   it.each(['complaintPattern', 'operationalStatus', 'listingIdentity'] as const)(
-    'refuses %s answered with a blank rationale',
+    'accepts %s answered with a blank rationale, with no problems reported',
     (field) => {
       const draft = { ...answered(), [field]: { ...answered()[field], rationale: '   ' } }
-      const problems = findJudgmentProblems(draft)
-      expect(problems).toHaveLength(1)
-      expect(problems[0].problem).toContain('no rationale')
-      expect(() => resolveJudgment(draft)).toThrow(/incomplete/i)
+      expect(findJudgmentProblems(draft)).toHaveLength(0)
+      expect(() => resolveJudgment(draft)).not.toThrow()
     },
   )
 
-  it('throws rather than silently downgrading an unsupported verdict', () => {
-    // Quietly turning an unsupported "none_found" into insufficient_data would
-    // hide a half-finished judgment behind a plausible-looking score.
+  it('records an honest "no rationale" label rather than inventing one or blocking the verdict', () => {
+    // DEC-005's "never invent" discipline, applied to a field it does not
+    // govern but the same principle reaches: a blank rationale is recorded as
+    // exactly that, never a fabricated-sounding explanation.
     const draft = { ...answered(), complaintPattern: { verdict: 'none_found' as const, rationale: '' } }
-    expect(() => resolveJudgment(draft)).toThrow()
+    const resolved = resolveJudgment(draft)
+    expect(resolved.complaintPattern.evidence).toBe('Answered by the operator; no rationale was recorded.')
   })
 
   it('needs no rationale to leave a gate unassessed', () => {
@@ -66,7 +77,7 @@ describe('DEC-091 — a verdict without a reason is not a judgment', () => {
     expect(findJudgmentProblems(emptyJudgment())).toHaveLength(0)
   })
 
-  it('carries the operator rationale through as the gate evidence', () => {
+  it('carries the operator rationale through as the gate evidence when one is given', () => {
     const resolved = resolveJudgment(answered())
     expect(resolved.complaintPattern.evidence).toContain('20 most recent reviews')
     expect(resolved.operationalStatus.evidence).toContain('hours are posted')

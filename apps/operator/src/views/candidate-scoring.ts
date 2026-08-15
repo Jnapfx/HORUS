@@ -113,3 +113,61 @@ export function auditCandidateFromMeasurement(
   })
   return { audit, obsoleteCoverage: scan.coverage }
 }
+
+export type AnalystEvidenceReference = { snapshotId: string; source: string; retrievedAt: string }
+
+/**
+ * DEC-127 gave `inspect_public_website_readonly` a hostname allowlist built
+ * from exactly the evidence a task supplies — this is what supplies it. The
+ * shared discovery snapshot (`serpapi.google_maps`) always comes first: it is
+ * where every candidate's own `website` field lives, the trusted key the
+ * allowlist reads (`evidence-hostname-allowlist.ts`). A candidate's review
+ * pages and web-opportunity measurement, when retained, are added the same
+ * way the deterministic score already reads them
+ * (`scoreCandidateFromHistory`, `auditCandidateFromMeasurement` above) — this
+ * function supplies the analyst with no evidence the deterministic score
+ * itself does not already have access to.
+ *
+ * `snapshotId`s are de-duplicated: `performance` and `telLinkFound` can point
+ * at the same `horus.website-analysis` snapshot, and the analyst's own
+ * `assertTaskIsBounded` requires at least one evidence reference, not that
+ * every one be distinct — de-duplicating here is a courtesy to the operator
+ * reading the request, not a requirement of the runtime.
+ */
+export function buildCandidateEvidenceReferences(input: {
+  discoverySnapshotId: string
+  discoveryRetrievedAt: string
+  reviewHistory?: { retrievedAt: string; snapshotIds: readonly string[] } | null
+  webOpportunityMeasurement?: {
+    retrievedAt: string
+    performance: { status: 'measured'; value: { snapshotId: string } } | { status: 'unmeasured'; reason: string }
+    telLinkFound: { status: 'measured'; value: { snapshotId: string } } | { status: 'unmeasured'; reason: string }
+  } | null
+}): readonly AnalystEvidenceReference[] {
+  const references: AnalystEvidenceReference[] = [
+    { snapshotId: input.discoverySnapshotId, source: 'serpapi.google_maps', retrievedAt: input.discoveryRetrievedAt },
+  ]
+
+  if (input.reviewHistory) {
+    for (const snapshotId of input.reviewHistory.snapshotIds) {
+      references.push({ snapshotId, source: 'serpapi.google_maps_reviews', retrievedAt: input.reviewHistory.retrievedAt })
+    }
+  }
+
+  const measurement = input.webOpportunityMeasurement
+  if (measurement) {
+    if (measurement.performance.status === 'measured') {
+      references.push({ snapshotId: measurement.performance.value.snapshotId, source: 'pagespeed.mobile', retrievedAt: measurement.retrievedAt })
+    }
+    if (measurement.telLinkFound.status === 'measured') {
+      references.push({ snapshotId: measurement.telLinkFound.value.snapshotId, source: 'horus.website-analysis', retrievedAt: measurement.retrievedAt })
+    }
+  }
+
+  const seen = new Set<string>()
+  return references.filter((reference) => {
+    if (seen.has(reference.snapshotId)) return false
+    seen.add(reference.snapshotId)
+    return true
+  })
+}

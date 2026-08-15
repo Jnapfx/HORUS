@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('horus', {
     checkAvailability: () => ipcRenderer.invoke('agent:analyst:availability'),
     runAnalyst: (evidence: { snapshotId: string; source: string; retrievedAt: string }[]) =>
       ipcRenderer.invoke('agent:analyst:run', evidence),
+    /** DEC-129. Runs the concept_composer bounded task once, over the given evidence, returning a validated content composition — never HTML, never published. */
+    runComposer: (evidence: { snapshotId: string; source: string; retrievedAt: string }[]) =>
+      ipcRenderer.invoke('agent:composer:run', evidence),
   },
   discovery: {
     /** DEC-069. Spends a real SerpApi credit and retrieves real business data — unless DEC-077's cache already has a matching category+city search, in which case no credit is spent. Set forceRefresh to skip the cache. */
@@ -62,14 +65,31 @@ contextBridge.exposeInMainWorld('horus', {
     record: (input: { listingId: string; judgment: unknown }) => ipcRenderer.invoke('judgment:record', input),
     list: () => ipcRenderer.invoke('judgment:list'),
   },
-  /** DEC-107. Rebuilds the last session from retained evidence. Spends nothing. */
+  /** DEC-107, extended by DEC-126. Rebuilds the last session from retained evidence. Spends nothing. */
   session: {
     restore: () => ipcRenderer.invoke('session:restore'),
+  },
+  /** DEC-126. Persists which candidate is the selected prospect, so it survives closing and reopening the app. */
+  prospect: {
+    setSelected: (input: { dataId: string | null }) => ipcRenderer.invoke('prospect:set-selected', input),
   },
   tracker: {
     /** DEC-082. Records exactly what the operator typed — HORUS never schedules or infers a follow-up (DEC-030). */
     scheduleFollowUp: (input: { dataId: string | null; to: string | null; date: string; note: string }) => ipcRenderer.invoke('tracker:schedule-follow-up', input),
     /** DEC-082. Read-only projection source for the tracker view. */
     listEvents: () => ipcRenderer.invoke('tracker:list-events'),
+  },
+  /** DEC-131. The Orchestrator's automated pipeline, wired one step at a time — see `docs/DECISIONS.md` DEC-131. */
+  orchestrator: {
+    /** Runs the Qualification Agent once against a lead's own retained evidence and records QUALIFIED/REJECTED/FAILED. A no-op (`status: 'skipped'`) if the lead is not currently DISCOVERED or has no retained discovery evidence — safe to call without checking state first. */
+    advanceQualification: (input: { dataId: string }) => ipcRenderer.invoke('orchestrator:advance-qualification', input),
+    /** DEC-137. Retries qualification for a lead currently FAILED — the operator's own explicit action, never called automatically. A no-op (`status: 'skipped'`) if the lead is not currently FAILED. */
+    retryQualification: (input: { dataId: string }) => ipcRenderer.invoke('orchestrator:retry-qualification', input),
+    /** DEC-140. Builds the demonstration and runs it through the anti-pattern detector and the QA reviewer, correcting up to three times. Stops at QA_PASSED — the operator's own DEC-004 publish gate is untouched and still theirs. A no-op (`status: 'skipped'`) unless the lead is QUALIFIED or QA_FAILED. */
+    advanceDemonstration: (input: { dataId: string }) => ipcRenderer.invoke('orchestrator:advance-demonstration', input),
+  },
+  lead: {
+    /** Read-only. Replays a lead's recorded event history into its current status per the DEC-131 state machine. */
+    getState: (input: { dataId: string }) => ipcRenderer.invoke('lead:get-state', input),
   },
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDemonstrationSite, type DemonstrationBusinessInput } from '../src/domain/demonstration'
+import { buildDemonstrationSite, type DemonstrationBusinessInput } from '../shared/demonstration'
 
 const fullBusiness: DemonstrationBusinessInput = {
   // DEC-106. "All data present" now means the listing attributes too.
@@ -158,6 +158,93 @@ describe('DEC-106 — the sections FUNCTIONAL_DESIGN §8.1 asks for', () => {
     })
     for (const invented of ['Delivery', 'Takeout', 'Monday', 'Typical spend']) {
       expect(result.html, invented).not.toContain(invented)
+    }
+  })
+})
+
+describe('DEC-129 — concept_composer content, still rendered only by this function', () => {
+  const base = {
+    name: 'Brasitas', category: 'Latin American restaurant', address: '954 E Main St, Stamford, CT',
+    phone: '(203) 323-3176', website: 'http://www.brasitas.com/', rating: 4.6, reviewCount: 687,
+    serviceOptions: ['Outdoor seating'], operatingHours: { monday: '4–9 PM' },
+  }
+
+  it('omitting composition behaves exactly as before — no about or reviews section, services/hours only', () => {
+    const result = buildDemonstrationSite({ business: base, generatedAt: '2026-08-11T12:00:00.000Z' })
+    expect(result.html).not.toContain('About Brasitas')
+    expect(result.html).not.toContain('What people are saying')
+  })
+
+  it('renders an about paragraph and cited review quotes when composition supplies them, in the order composition names', () => {
+    const result = buildDemonstrationSite({
+      business: base,
+      generatedAt: '2026-08-11T12:00:00.000Z',
+      composition: {
+        sectionOrder: ['reviews', 'about', 'services', 'hours'],
+        tone: 'warm',
+        tagline: 'A neighborhood favorite',
+        aboutParagraph: 'A family-run Latin American restaurant known for outdoor seating.',
+        reviewHighlights: [{ quote: 'Best pasteles in town.', evidenceSnapshotId: 'raw_2' }],
+      },
+    })
+    expect(result.html).toContain('About Brasitas')
+    expect(result.html).toContain('A family-run Latin American restaurant known for outdoor seating.')
+    expect(result.html).toContain('What people are saying')
+    expect(result.html).toContain('Best pasteles in town.')
+    expect(result.html).toContain('A neighborhood favorite')
+    // reviews named before about in sectionOrder — the rendered order should follow.
+    expect(result.html.indexOf('What people are saying')).toBeLessThan(result.html.indexOf('About Brasitas'))
+  })
+
+  it('omits a composed section the agent asked for when its own backing data is absent — composition cannot force a fact into existence', () => {
+    const noHours = { ...base, operatingHours: null }
+    const result = buildDemonstrationSite({
+      business: noHours,
+      generatedAt: '2026-08-11T12:00:00.000Z',
+      composition: { sectionOrder: ['hours'], tone: 'warm', tagline: null, aboutParagraph: null, reviewHighlights: [] },
+    })
+    expect(result.html).not.toContain('<h2>Hours</h2>')
+    expect(result.missingFields).toContain('hours')
+  })
+
+  it('escapes an about paragraph and review quote rather than injecting them raw', () => {
+    const result = buildDemonstrationSite({
+      business: base,
+      generatedAt: '2026-08-11T12:00:00.000Z',
+      composition: {
+        sectionOrder: ['about', 'reviews'],
+        tone: 'minimal',
+        tagline: null,
+        aboutParagraph: '<script>alert(1)</script>',
+        reviewHighlights: [{ quote: '<img src=x onerror=alert(1)>', evidenceSnapshotId: 'raw_2' }],
+      },
+    })
+    expect(result.html).not.toContain('<script>alert(1)</script>')
+    expect(result.html).not.toContain('<img src=x onerror=alert(1)>')
+    expect(result.html).toContain('&lt;script&gt;')
+  })
+
+  it('is still a pure function with a composition supplied', () => {
+    const composition = {
+      sectionOrder: ['about'] as const,
+      tone: 'bold' as const,
+      tagline: 'Tag',
+      aboutParagraph: 'About text.',
+      reviewHighlights: [],
+    }
+    const a = buildDemonstrationSite({ business: base, generatedAt: '2026-08-11T12:00:00.000Z', composition })
+    const b = buildDemonstrationSite({ business: base, generatedAt: '2026-08-11T12:00:00.000Z', composition })
+    expect(a.html).toBe(b.html)
+  })
+
+  it('never shares CSS custom-property syntax between tones, matching DEC-083 rule 6 for every tone preset', () => {
+    for (const tone of ['warm', 'minimal', 'bold'] as const) {
+      const result = buildDemonstrationSite({
+        business: base,
+        generatedAt: '2026-08-11T12:00:00.000Z',
+        composition: { sectionOrder: [], tone, tagline: null, aboutParagraph: null, reviewHighlights: [] },
+      })
+      expect(result.html).not.toContain('var(--')
     }
   })
 })

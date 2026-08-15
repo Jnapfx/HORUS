@@ -47,6 +47,25 @@ declare global {
             }
           | { status: 'failed'; record: unknown; reason: string; detail: string }
         >
+        /** DEC-129. Runs the concept_composer bounded task once over the given evidence. Never HTML, never persisted, never published — the renderer feeds the returned composition into `buildDemonstrationSite`. */
+        runComposer: (evidence: Array<{ snapshotId: string; source: string; retrievedAt: string }>) => Promise<
+          | {
+              status: 'awaiting_operator_review'
+              record: unknown
+              output: {
+                sectionOrder: readonly ('about' | 'reviews' | 'services' | 'hours')[]
+                tone: 'warm' | 'minimal' | 'bold'
+                tagline: string | null
+                aboutParagraph: string | null
+                reviewHighlights: readonly { quote: string; evidenceSnapshotId: string }[]
+                rationale: string
+                /** DEC-140. The agent's design choice, validated against the closed sets in `shared/demonstration.ts` before it gets here. */
+                palette: 'forest' | 'cobalt' | 'black_tan' | 'terracotta_slate' | 'olive_brick' | 'mono_pop'
+                fontPairing: 'editorial' | 'grotesque' | 'humanist'
+              }
+            }
+          | { status: 'failed'; record: unknown; reason: string; detail: string }
+        >
       }
       /** DEC-069. Spends a real SerpApi credit and retrieves real business data — distinct from the fixture-only `workflow` above. */
       discovery: {
@@ -137,7 +156,7 @@ declare global {
           | { status: 'failed'; reason: string; detail: string }
         >
       }
-      /** DEC-107, extended by DEC-117. Rebuilds the last working session from retained evidence. Spends nothing. */
+      /** DEC-107, extended by DEC-117 and DEC-126. Rebuilds the last working session from retained evidence. Spends nothing. */
       session: {
         restore: () => Promise<{
           discovery: {
@@ -156,7 +175,13 @@ declare global {
           }>
           /** DEC-117. Keyed by the business's own website URL — the same key `measureWebOpportunity` is called with. */
           webOpportunityMeasurements: Record<string, Extract<Awaited<ReturnType<Window['horus']['discovery']['measureWebOpportunity']>>, { status: 'completed' }>>
+          /** DEC-126. The last selected prospect's `dataId`, or `null` if none was ever selected or it was cleared. */
+          selectedProspectId: string | null
         }>
+      }
+      /** DEC-126. Persists which candidate is the selected prospect across an app restart. */
+      prospect: {
+        setSelected: (input: { dataId: string | null }) => Promise<{ status: 'saved' }>
       }
       /** DEC-094. Durable operator judgment on charter 9.5's judgment gates; read back as a projection, never a second stored copy. */
       judgment: {
@@ -176,6 +201,124 @@ declare global {
       tracker: {
         scheduleFollowUp: (input: { dataId: string | null; to: string | null; date: string; note: string }) => Promise<{ status: 'recorded'; occurredAt: string }>
         listEvents: () => Promise<Array<{ id: string; aggregateType: string; aggregateId: string; eventType: string; payload: unknown; occurredAt: string }>>
+      }
+      /** DEC-131. The Orchestrator's automated pipeline, wired one step at a time — currently only DISCOVERED -> QUALIFYING -> QUALIFIED/REJECTED/FAILED. */
+      orchestrator: {
+        advanceQualification: (input: { dataId: string }) => Promise<
+          | {
+              status: 'qualified' | 'rejected'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              output: {
+                opportunityScore: number
+                qualified: boolean
+                reasons: readonly { text: string; evidenceSnapshotIds: readonly string[] }[]
+              }
+            }
+          | {
+              status: 'failed'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              reason: string
+              detail: string
+            }
+          | { status: 'skipped'; reason: string }
+        >
+        /** DEC-137. Retries qualification for a lead currently FAILED — same result shape as `advanceQualification`, only reachable by the operator's own explicit action. */
+        retryQualification: (input: { dataId: string }) => Promise<
+          | {
+              status: 'qualified' | 'rejected'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              output: {
+                opportunityScore: number
+                qualified: boolean
+                reasons: readonly { text: string; evidenceSnapshotIds: readonly string[] }[]
+              }
+            }
+          | {
+              status: 'failed'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              reason: string
+              detail: string
+            }
+          | { status: 'skipped'; reason: string }
+        >
+        /**
+         * DEC-140. Builds the demonstration and runs the BUILD -> QA -> FIX
+         * loop: the impeccable anti-pattern detector first, then the
+         * `qa_reviewer` agent, correcting up to three times. Its success
+         * state, `qa_passed`, means the page is ready for the operator to
+         * read — it is not an approval and does not touch either DEC-004 gate.
+         */
+        advanceDemonstration: (input: { dataId: string }) => Promise<
+          | {
+              status: 'qa_passed'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              html: string
+              /** Fields with no verified value, rendered as bracketed placeholders — same list `buildDemonstrationSite` returns directly. */
+              missingFields: readonly string[]
+              attempts: readonly {
+                attempt: number
+                demoSnapshotId: string
+                detectorFindings: readonly string[]
+                agentIssues: readonly string[]
+                outcome: 'passed' | 'detector_rejected' | 'agent_rejected' | 'unchecked'
+              }[]
+            }
+          | {
+              status: 'qa_failed'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              attempts: readonly {
+                attempt: number
+                demoSnapshotId: string
+                detectorFindings: readonly string[]
+                agentIssues: readonly string[]
+                outcome: 'passed' | 'detector_rejected' | 'agent_rejected' | 'unchecked'
+              }[]
+              reason: string
+            }
+          | {
+              status: 'failed'
+              leadState: {
+                dataId: string
+                status: string
+                history: readonly { status: string; occurredAt: string; detail?: string }[]
+              }
+              reason: string
+              detail: string
+            }
+          | { status: 'skipped'; reason: string }
+        >
+      }
+      /** DEC-131. Read-only: replays a lead's recorded event history into its current status. */
+      lead: {
+        getState: (input: { dataId: string }) => Promise<{
+          dataId: string
+          status: string
+          history: readonly { status: string; occurredAt: string; detail?: string }[]
+        }>
       }
     }
   }

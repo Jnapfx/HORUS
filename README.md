@@ -6,7 +6,7 @@ A clean repository for designing and building HORUS V1 with traceability from da
 
 ## What this is
 
-HORUS is a company being founded. **HORUS V1 is the first internal operating tool built for it** — used by the founder to acquire HORUS's first client. It is not a product for sale (DEC-003).
+HORUS is the first project developed by Argus Digital Works, a company currently being established. HORUS V1 is the company’s first internal operating tool, designed to support the founder in acquiring Argus Digital Works’ first client. It is an internal business tool, not a commercial product or SaaS offering, in accordance with DEC-003.
 
 One complete run does this: enter a business category and a city → HORUS finds local businesses with strong reputations but weak web presence, ranks them with evidence → the founder picks one → HORUS builds a customized demonstration website from verified public information → the founder approves it before publication → HORUS publishes it and prepares an outreach handoff → the founder approves, composes, and sends it in Gmail → HORUS records the prospect and the next follow-up.
 

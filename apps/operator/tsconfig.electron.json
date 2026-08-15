@@ -3,8 +3,8 @@
     "target": "ES2023",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "build/electron",
-    "rootDir": "./electron",
+    "outDir": "build",
+    "rootDir": ".",
     "types": ["node", "electron"],
     "strict": true,
     "skipLibCheck": true,
@@ -12,5 +12,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["electron"]
+  "include": ["electron", "shared"]
 }

@@ -14,19 +14,19 @@
  * headline promise — one search, one qualified prospect — was structurally
  * impossible to reach.
  *
- * Two rules shape this module, and both come from DEC-008 and charter 9.5
- * rather than from convenience:
+ * One rule shapes this module, from DEC-008 and charter 9.5 rather than from
+ * convenience: **the default is never a pass.** An unanswered gate stays
+ * `insufficient_data`. Qualification has to be actively established, never
+ * reached by leaving a form alone.
  *
- * 1. **The default is never a pass.** An unanswered gate stays
- *    `insufficient_data`. Qualification has to be actively established, never
- *    reached by leaving a form alone.
- * 2. **A verdict without a reason is not a judgment.** Every assessment the
- *    charter defines already carries an `evidence: string`, and a status
- *    chosen with that field left blank is refused here rather than passed
- *    down. FUNCTIONAL_DESIGN section 5 requires the operator's rationale to be
- *    captured; a gate that could be opened by picking from a dropdown without
- *    saying why is exactly the "silently satisfying an operator gate" failure
- *    that DEC-087's mutation test exists to catch.
+ * DEC-091 also required a written rationale before a verdict other than
+ * `insufficient_data` would be accepted — every assessment the charter
+ * defines already carries an `evidence: string`, and FUNCTIONAL_DESIGN
+ * section 5 asks for the operator's rationale to be captured. DEC-124 removed
+ * that requirement at the operator's own direct request: the rationale is
+ * still captured when written, but a verdict is now a real, recordable
+ * judgment on its own — the charter asks whether the operator decided, not
+ * whether they wrote a paragraph defending it.
  *
  * Nothing here scores, ranks, or decides anything. It records what the
  * operator concluded and hands it to `reputation-scoring.ts`, which owns the
@@ -102,22 +102,20 @@ export const JUDGMENT_GATES: ReadonlyArray<{
 export type JudgmentProblem = { gate: JudgmentGateId; problem: string }
 
 /**
- * A gate answered with anything other than `insufficient_data` must carry a
- * rationale. An unanswered gate needs none — "not assessed" is an honest state
- * and requires no defence.
+ * DEC-124. A rationale used to be required for any verdict other than
+ * `insufficient_data`, and blocked both recording and, before that, even
+ * seeing a score. The operator asked directly for that friction to be
+ * removed: "quitale lo de escribir algo obligado. que no sea obligatorio."
+ * `findJudgmentProblems` now always reports no problems — kept as a named
+ * export, rather than deleted, so `isJudgmentComplete` and the record button
+ * still have one real place to check, if a future rule ever needs one. What
+ * DEC-091's rule 1 established is unchanged: an unanswered gate (still
+ * `insufficient_data`) never counts as a pass, and the three verdicts
+ * themselves are still required to open the gate — only the free-text
+ * explanation of a verdict is now optional.
  */
-export function findJudgmentProblems(draft: OperatorJudgmentDraft): readonly JudgmentProblem[] {
-  const problems: JudgmentProblem[] = []
-  for (const gate of JUDGMENT_GATES) {
-    const entry = draft[gate.field]
-    if (entry.verdict !== 'insufficient_data' && !entry.rationale.trim()) {
-      problems.push({
-        gate: gate.id,
-        problem: `${gate.id} is answered "${entry.verdict}" with no rationale. Record what you saw that supports it.`,
-      })
-    }
-  }
-  return problems
+export function findJudgmentProblems(_draft: OperatorJudgmentDraft): readonly JudgmentProblem[] {
+  return []
 }
 
 export type ResolvedJudgment = {
@@ -127,23 +125,27 @@ export type ResolvedJudgment = {
 }
 
 const UNASSESSED_EVIDENCE = 'Not assessed by the operator.'
+// DEC-124. The rationale field's own placeholder text, used verbatim as the
+// recorded evidence when a verdict was answered but no rationale was typed —
+// an honest label for what actually happened, not a fabricated explanation.
+const NO_RATIONALE_EVIDENCE = 'Answered by the operator; no rationale was recorded.'
 
 /**
  * Turns the draft into the three assessments `buildReputationScore` expects.
- * Throws rather than silently downgrading when a verdict lacks its rationale:
- * quietly turning an unsupported "none_found" into `insufficient_data` would
- * hide an operator's half-finished judgment behind a plausible-looking score.
+ * DEC-124: no longer throws on a missing rationale — a verdict without one is
+ * still a real judgment (charter 9.5 asks whether the operator decided, not
+ * whether they wrote a paragraph about it), recorded with a plain label
+ * saying no rationale was given, rather than blocked or a guessed reason
+ * fabricated in its place.
  */
 export function resolveJudgment(draft: OperatorJudgmentDraft): ResolvedJudgment {
-  const problems = findJudgmentProblems(draft)
-  if (problems.length > 0) {
-    throw new Error(`Operator judgment is incomplete: ${problems.map((problem) => problem.problem).join(' ')}`)
-  }
   const resolve = <T extends string>(entry: { verdict: T; rationale: string }) => ({
     status: entry.verdict,
-    evidence: entry.verdict === 'insufficient_data' && !entry.rationale.trim()
-      ? UNASSESSED_EVIDENCE
-      : entry.rationale.trim(),
+    evidence: entry.rationale.trim()
+      ? entry.rationale.trim()
+      : entry.verdict === 'insufficient_data'
+        ? UNASSESSED_EVIDENCE
+        : NO_RATIONALE_EVIDENCE,
   })
   return {
     complaintPattern: resolve(draft.complaintPattern) as ComplaintPatternAssessment,

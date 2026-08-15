@@ -12,7 +12,7 @@
  * control boundaries and focus indicators >= 3:1.
  *
  * This file styles the operator interface only. The demonstration generator in
- * `src/domain/demonstration.ts` keeps its own self-contained light stylesheet
+ * `shared/demonstration.ts` keeps its own self-contained light stylesheet
  * and shares nothing here — DEC-083 rule 6, DEC-037, DEC-025.
  */
 

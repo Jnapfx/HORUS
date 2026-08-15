@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runOpportunityAnalyst } from './agent/analyst-ipc.js'
+import { runConceptComposer } from './agent/concept-composer-ipc.js'
 import { createEvidenceToolWiring } from './agent/evidence-tool-wiring.js'
 import { nodeSpawn } from './agent/node-spawn.js'
 import { createClaudeCodeRuntime } from './agent/runtime.js'
@@ -13,6 +14,9 @@ import { OperatorConfigMissing, getHomeBaseCoordinates, loadOperatorConfig, requ
 import { extractCandidatesForRestore, runRealDiscoverySearch } from './discovery-ipc.js'
 import { listIntegrationContracts } from './integrations/contracts.js'
 import { createHorusStore } from './persistence.js'
+import { advanceLeadQualification, retryLeadQualification } from './orchestrator/run-lead.js'
+import { advanceLeadDemonstration } from './orchestrator/run-demonstration.js'
+import { readLeadState } from './orchestrator/lead-store.js'
 import { publishDemonstrationSite, removeDemonstrationSite } from './publish-ipc.js'
 import { runReviewHistoryRetrieval } from './review-retrieval-ipc.js'
 import { readAllRetainedRuns, readLatestRetainedRun } from './review-evidence.js'
@@ -84,6 +88,61 @@ app.whenReady().then(() => {
       saveDraft: (draft) => store.saveAgentDraft(draft),
     }),
   )
+  // DEC-129. `concept_composer`, the second of the three `AgentRole`s made
+  // real — reuses `analystRuntime` above rather than building a second
+  // `LocalAgentRuntime`: the runtime itself is role-agnostic (it only spawns
+  // `claude` with whatever `BoundedAgentTask` it is given), and both roles
+  // need the identical evidence-tool wiring. No draft persistence here —
+  // unlike the analyst, a composition is only ever used once, inline, to
+  // build one demonstration preview; DEC-067's draft store is not extended
+  // to this role.
+  ipcMain.handle('agent:composer:run', (_event, evidence: { snapshotId: string; source: string; retrievedAt: string }[]) =>
+    runConceptComposer({
+      runtime: analystRuntime,
+      evidence,
+      taskId: `composer_${Date.now()}`,
+    }),
+  )
+  // DEC-131. The Orchestrator's own first wired step: DISCOVERED -> QUALIFYING
+  // -> QUALIFIED/REJECTED/FAILED, driven by the Qualification Agent (DEC-130).
+  // Reuses `analystRuntime` — the runtime is role-agnostic, same reason
+  // `agent:composer:run` above reuses it rather than building a second one.
+  // `orchestrator:advance-qualification` performs exactly one transition per
+  // call and is safe to call again on a lead that has already moved past
+  // DISCOVERED (`advanceLeadQualification` reports `status: 'skipped'` rather
+  // than erroring), so a renderer trigger can call it once per lead without
+  // first checking the lead's current status itself.
+  ipcMain.handle('orchestrator:advance-qualification', (_event, input: { dataId: string }) =>
+    advanceLeadQualification({ store, runtime: analystRuntime, dataId: input.dataId }),
+  )
+  // DEC-137. The operator's own explicit "reintentar" action for a lead
+  // stuck at FAILED (a real timeout, diagnosed live, left leads with no way
+  // back into the pipeline). Only reachable from a button the operator
+  // presses — nothing in the automated pipeline calls this.
+  ipcMain.handle('orchestrator:retry-qualification', (_event, input: { dataId: string }) =>
+    retryLeadQualification({ store, runtime: analystRuntime, dataId: input.dataId }),
+  )
+  // DEC-140. The Orchestrator's second wired step, and the one that closes
+  // the gap `run-lead.ts` documented as unbuildable: QUALIFIED ->
+  // WEBSITE_GENERATING -> WEBSITE_GENERATED -> QA_IN_PROGRESS ->
+  // QA_PASSED/QA_FAILED, with a bounded correction loop in between. Runs
+  // entirely before DEC-004 gate one and touches no publish or outreach
+  // channel; its success state, QA_PASSED, means "ready for the operator to
+  // review", never "approved". Safe to call on a lead in any other status —
+  // it reports `skipped` rather than erroring — and safe to call again on a
+  // QA_FAILED lead, which is how the operator retries one the loop could not
+  // correct on its own.
+  ipcMain.handle('orchestrator:advance-demonstration', (_event, input: { dataId: string }) =>
+    advanceLeadDemonstration({
+      store,
+      runtime: analystRuntime,
+      dataId: input.dataId,
+      scratchRoot: path.join(app.getPath('userData'), 'qa-runs'),
+    }),
+  )
+  // Read-only: replays a lead's own recorded event history into its current
+  // status, per `lead-state.ts`. Costs nothing.
+  ipcMain.handle('lead:get-state', (_event, input: { dataId: string }) => readLeadState(store, input.dataId))
   // Real discovery search, distinct from the Phase 4 representative workflow
   // below: this spends a real SerpApi credit and retrieves real business
   // data, so it lives behind its own IPC channel and its own UI surface
@@ -358,6 +417,22 @@ app.whenReady().then(() => {
     return { status: 'recorded' as const, occurredAt }
   })
   ipcMain.handle('judgment:list', () => store.listEvents(['prospect']))
+  // DEC-126. The operator's own request: the selected prospect should "quede
+  // guardado hasta que avance asi cierre la app" — stay selected even across
+  // an app restart, not just within one running session. There is exactly one
+  // selected prospect at a time, which is workspace navigation state, not a
+  // per-listing business fact — the same category of thing the representative
+  // workflow's own state already uses `workflow_sessions` for, reused here
+  // under its own key rather than modelled as a durable event on a listing.
+  const PROSPECT_SELECTION_KEY = 'prospect-selection-v1'
+  ipcMain.handle('prospect:set-selected', (_event, input: { dataId: string | null }) => {
+    store.saveWorkflowState({
+      workflowId: PROSPECT_SELECTION_KEY,
+      state: { selectedProspectId: input.dataId },
+      updatedAt: new Date().toISOString(),
+    })
+    return { status: 'saved' as const }
+  })
   // DEC-107. Rebuilds the last working session from evidence already retained,
   // so closing the application stops discarding a search the operator paid
   // for. Spends nothing: every byte here is already on disk. Charter §14's own
@@ -398,6 +473,12 @@ app.whenReady().then(() => {
     // returned raw for the renderer to re-run a search over. A restore that
     // could reach the network is a restore that could spend a credit on
     // startup, which is not a thing this application may do.
+    // DEC-126. The last selected prospect, read back the same way the
+    // representative workflow's own saved state is — `null` both when
+    // nothing was ever selected and when the operator explicitly cleared it,
+    // which is the correct default for either case: nothing to restore.
+    const prospectSelection = store.getWorkflowState('prospect-selection-v1') as { selectedProspectId?: string | null } | null
+
     return {
       discovery: latest
         ? {
@@ -409,6 +490,7 @@ app.whenReady().then(() => {
         : null,
       reviewHistories,
       webOpportunityMeasurements,
+      selectedProspectId: prospectSelection?.selectedProspectId ?? null,
     }
   })
   // DEC-096. DEC-031 exempts an engaged prospect from the 60-day removal

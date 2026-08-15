@@ -2,10 +2,11 @@ import { useState } from 'react'
 import type { ReputationScore } from '../domain/reputation-scoring'
 import type { WebOpportunityAudit } from '../domain/web-opportunity-audit'
 import { assessProximity, type Coordinates } from '../domain/proximity'
-import { buildDemonstrationSite } from '../domain/demonstration'
+import { buildDemonstrationSite, type DemonstrationComposition } from '../../shared/demonstration'
 import { buildOutreachDraft } from '../domain/outreach'
 import { assessOldest } from '../domain/freshness'
 import { compareListingEvidence, type EvidenceComparison, type ListingEvidence } from '../domain/evidence-diff'
+import type { AnalystEvidenceReference } from './candidate-scoring'
 import type { CandidateSummary } from './types'
 
 /**
@@ -37,6 +38,7 @@ export function ProspectRecord({
   searchContext,
   onClear,
   now,
+  evidenceReferences = [],
 }: {
   id: string
   section?: ProspectSection
@@ -51,6 +53,8 @@ export function ProspectRecord({
   onClear: () => void
   /** Injected only by tests; freshness is deliberately clock-dependent. */
   now?: Date
+  /** DEC-129. This prospect's own already-retained evidence, assembled the same way (`buildCandidateEvidenceReferences`) the Shortlist's "Analyze candidates" button already uses — what the concept_composer agent is allowed to read. */
+  evidenceReferences?: readonly AnalystEvidenceReference[]
 }) {
   const index = candidates.findIndex((c, i) => (c.dataId ?? `index-${i}`) === id)
   const candidate = candidates[index]
@@ -59,6 +63,24 @@ export function ProspectRecord({
   >(null)
   const [capturing, setCapturing] = useState(false)
   const [demoPreview, setDemoPreview] = useState<ReturnType<typeof buildDemonstrationSite> | null>(null)
+  // DEC-129. `null` = never run; `undefined` composition on generateDemoPreview
+  // falls back to the deterministic default, exactly as before this decision.
+  const [composerConfirmed, setComposerConfirmed] = useState(false)
+  const [composing, setComposing] = useState(false)
+  const [composerResult, setComposerResult] = useState<
+    | { status: 'awaiting_operator_review'; output: DemonstrationComposition; rationale: string }
+    | { status: 'failed'; reason: string; detail: string }
+    | null
+  >(null)
+  // DEC-140. The BUILD -> QA -> FIX loop's own outcome, shown to the operator
+  // before they read the preview: how many attempts it took, what each round
+  // was rejected for, and whether the page reaching them passed both checks or
+  // merely ran out of correction attempts. `null` = the loop never ran.
+  const [demoQa, setDemoQa] = useState<
+    | { status: 'qa_passed'; attempts: readonly { attempt: number; detectorFindings: readonly string[]; agentIssues: readonly string[]; outcome: string }[] }
+    | { status: 'qa_failed'; attempts: readonly { attempt: number; detectorFindings: readonly string[]; agentIssues: readonly string[]; outcome: string }[]; reason: string }
+    | null
+  >(null)
   const [publishApproved, setPublishApproved] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<
@@ -96,6 +118,27 @@ export function ProspectRecord({
   const [declaredSent, setDeclaredSent] = useState<{ occurredAt: string } | null>(null)
   const [followUpForm, setFollowUpForm] = useState({ date: '', note: '' })
   const [followUpScheduled, setFollowUpScheduled] = useState<{ occurredAt: string } | null>(null)
+  // DEC-131. The Orchestrator's first wired step, surfaced manually here
+  // rather than run automatically on selection — the operator asked for the
+  // pipeline to run without a human step *between* discovery, qualification,
+  // website generation and QA (docs/DECISIONS.md DEC-131), not for it to run
+  // the moment a prospect is opened. `leadStatus` is `null` until checked or
+  // advanced at least once in this session.
+  const [leadStatus, setLeadStatus] = useState<{
+    status: string
+    history: readonly { status: string; occurredAt: string; detail?: string }[]
+  } | null>(null)
+  const [qualifying, setQualifying] = useState(false)
+  const [qualifyResult, setQualifyResult] = useState<{ status: 'failed'; reason: string; detail: string } | { status: 'skipped'; reason: string } | null>(null)
+  // DEC-134. The operator's own request: fewer clicks, one yes/no per
+  // business. `runFullFlow` below collapses qualification, composing, and
+  // demo generation into the single "Sí, seguir" button — everything up to
+  // (not including) the DEC-004 publish/outreach gates, which stay their own
+  // explicit steps because they are real, irreversible actions (a public
+  // site, a real email), not something to fold into a generic continue
+  // button. "No, siguiente" is `onClear` under a clearer label.
+  const [flowRunning, setFlowRunning] = useState(false)
+  const [flowStage, setFlowStage] = useState<'idle' | 'qualifying' | 'composing' | 'done'>('idle')
 
   if (!candidate) return null
   // Mounted but off-screen: keeps every draft and preview alive while the
@@ -164,7 +207,13 @@ export function ProspectRecord({
       .finally(() => setCapturing(false))
   }
 
-  const generateDemoPreview = () => {
+  // DEC-134. Split out of `generateDemoPreview` so `runFullFlow` below can
+  // pass a freshly-composed result straight through: calling `setComposerResult`
+  // and then reading `composerResult` in the same synchronous block would see
+  // the pre-update value (React state updates are not applied mid-function),
+  // which would silently render the deterministic fallback even when the
+  // composer had just succeeded.
+  const renderDemo = (composition: DemonstrationComposition | undefined) => {
     setDemoPreview(
       buildDemonstrationSite({
         business: {
@@ -184,10 +233,41 @@ export function ProspectRecord({
           photoUrl: candidate.photoUrl,
         },
         generatedAt: new Date().toISOString(),
+        // DEC-129. `undefined` when the composer was never run (or failed) —
+        // `buildDemonstrationSite` then falls back to the pre-DEC-129
+        // deterministic default, exactly as it always has.
+        composition,
       }),
     )
     setPublishApproved(false)
     setPublishResult(null)
+  }
+
+  const generateDemoPreview = () => {
+    renderDemo(composerResult?.status === 'awaiting_operator_review' ? composerResult.output : undefined)
+  }
+
+  // DEC-129. A single, explicit, manual run — same shape as the Shortlist's
+  // own "Analyze candidates" button (DEC-128): a spend-acknowledgment
+  // checkbox, one bounded task, inert output the operator reviews before it
+  // ever reaches a preview. The composition only ever changes what
+  // `generateDemoPreview` renders next; it does not touch `demoPreview` or
+  // any existing approval until the operator presses "Generate demonstration
+  // preview" again.
+  const composeWithAgent = () => {
+    if (evidenceReferences.length === 0) return
+    setComposing(true)
+    setComposerResult(null)
+    window.horus?.agent.runComposer([...evidenceReferences])
+      .then((outcome) => {
+        if (!outcome) return
+        if (outcome.status === 'failed') {
+          setComposerResult({ status: 'failed', reason: outcome.reason, detail: outcome.detail })
+          return
+        }
+        setComposerResult({ status: 'awaiting_operator_review', output: outcome.output, rationale: outcome.output.rationale })
+      })
+      .finally(() => setComposing(false))
   }
 
   const publish = () => {
@@ -240,6 +320,148 @@ export function ProspectRecord({
     window.horus?.outreach.declareSent({ dataId: candidate.dataId, to: outreachDraft.to }).then(setDeclaredSent)
   }
 
+  // DEC-131. Runs the Qualification Agent once for this lead. `advanceQualification`
+  // itself checks the lead's current status server-side and is a no-op
+  // (`status: 'skipped'`) unless the lead is DISCOVERED, so this is safe to
+  // press more than once — it only ever records at most one real transition.
+  const runQualification = () => {
+    if (!candidate.dataId) return
+    setQualifying(true)
+    setQualifyResult(null)
+    window.horus?.orchestrator.advanceQualification({ dataId: candidate.dataId })
+      .then((outcome) => {
+        if (!outcome) return
+        if (outcome.status === 'failed' || outcome.status === 'skipped') {
+          setQualifyResult(outcome)
+        }
+        if ('leadState' in outcome) setLeadStatus(outcome.leadState)
+      })
+      .finally(() => setQualifying(false))
+  }
+
+  // DEC-137. The operator's own explicit "reintentar" — only offered once
+  // `leadStatus.status` is actually `FAILED`, and calls a separate IPC
+  // channel (`orchestrator:retry-qualification`) that only accepts a FAILED
+  // lead; `runQualification`/`runFullFlow` above still refuse to do anything
+  // once a lead has left DISCOVERED, so a stuck lead needs this button.
+  const retryQualification = () => {
+    if (!candidate.dataId) return
+    setQualifying(true)
+    setQualifyResult(null)
+    window.horus?.orchestrator.retryQualification({ dataId: candidate.dataId })
+      .then((outcome) => {
+        if (!outcome) return
+        if (outcome.status === 'failed' || outcome.status === 'skipped') {
+          setQualifyResult(outcome)
+        }
+        if ('leadState' in outcome) setLeadStatus(outcome.leadState)
+      })
+      .finally(() => setQualifying(false))
+  }
+
+  const checkLeadStatus = () => {
+    if (!candidate.dataId) return
+    window.horus?.lead.getState({ dataId: candidate.dataId }).then(setLeadStatus)
+  }
+
+  // DEC-134. The single "Sí, seguir" flow: qualify (DEC-130/131), then — only
+  // if the agent qualified this lead (or it was already QUALIFIED from an
+  // earlier run this session) — compose and render a demo preview, with no
+  // separate button presses in between. A rejected, failed, or otherwise
+  // not-yet-qualified lead stops here rather than generating a demo for a
+  // business the pipeline itself decided not to pursue.
+  const runFullFlow = async () => {
+    if (!candidate.dataId) {
+      // No data_id on this candidate (a fixture in tests, or a listing SerpApi
+      // returned with none) — nothing to qualify against; still worth a demo.
+      generateDemoPreview()
+      return
+    }
+    setFlowRunning(true)
+    setQualifyResult(null)
+    setFlowStage('qualifying')
+    try {
+      const outcome = await window.horus?.orchestrator.advanceQualification({ dataId: candidate.dataId })
+      if (!outcome) return
+
+      let qualified = outcome.status === 'qualified'
+      if ('leadState' in outcome) setLeadStatus(outcome.leadState)
+
+      if (outcome.status === 'failed') {
+        setQualifyResult(outcome)
+        return
+      }
+      if (outcome.status === 'rejected') {
+        return
+      }
+      if (outcome.status === 'skipped') {
+        // The lead was not DISCOVERED — most likely it was already qualified
+        // in an earlier press of this same button this session. Read its
+        // actual current status rather than guessing from the skip reason.
+        const state = await window.horus?.lead.getState({ dataId: candidate.dataId })
+        if (state) setLeadStatus(state)
+        qualified = state?.status === 'QUALIFIED'
+        if (!qualified) {
+          setQualifyResult(outcome)
+          return
+        }
+      }
+
+      // DEC-140. Was a single composer call whose output the renderer fed
+      // straight into `buildDemonstrationSite` — one build, no checking. It
+      // now runs the Orchestrator's BUILD -> QA -> FIX loop in the main
+      // process: the same composer, plus the impeccable anti-pattern detector
+      // and the `qa_reviewer` agent, correcting up to three times. What comes
+      // back has already passed both checks, so the operator's DEC-004 review
+      // starts from a page that no longer has the mechanical defects they were
+      // previously the first to see. The gate itself is untouched — `qa_passed`
+      // is not an approval, and `renderDemo`'s own `setPublishApproved(false)`
+      // still applies to the result.
+      setFlowStage('composing')
+      const built = await window.horus?.orchestrator.advanceDemonstration({ dataId: candidate.dataId })
+      if (built && 'leadState' in built) setLeadStatus(built.leadState)
+
+      if (built?.status === 'qa_passed') {
+        setDemoPreview({ html: built.html, missingFields: built.missingFields, generatedAt: new Date().toISOString() })
+        setPublishApproved(false)
+        setPublishResult(null)
+        setDemoQa({ status: 'qa_passed', attempts: built.attempts })
+        setFlowStage('done')
+        return
+      }
+
+      if (built?.status === 'qa_failed') {
+        setDemoQa({ status: 'qa_failed', attempts: built.attempts, reason: built.reason })
+      }
+
+      // Anything the loop could not complete (a QA failure it could not
+      // correct, an agent failure, or a lead the step does not apply to)
+      // falls back to the pre-DEC-140 local build, so the operator still gets
+      // a preview to look at rather than an empty panel — it is simply one
+      // that has not passed QA, and the panel above says so.
+      let composition: DemonstrationComposition | undefined
+      if (evidenceReferences.length > 0) {
+        try {
+          const composed = await window.horus?.agent.runComposer([...evidenceReferences])
+          if (composed?.status === 'awaiting_operator_review') {
+            setComposerResult({ status: 'awaiting_operator_review', output: composed.output, rationale: composed.output.rationale })
+            composition = composed.output
+          } else if (composed?.status === 'failed') {
+            // Best-effort: the composer failing does not block the flow — a
+            // demo still gets generated, just with the deterministic default.
+            setComposerResult({ status: 'failed', reason: composed.reason, detail: composed.detail })
+          }
+        } catch {
+          // same best-effort posture
+        }
+      }
+      renderDemo(composition)
+      setFlowStage('done')
+    } finally {
+      setFlowRunning(false)
+    }
+  }
+
   const scheduleFollowUp = () => {
     if (!followUpForm.date) return
     window.horus?.tracker
@@ -260,6 +482,61 @@ export function ProspectRecord({
       <p>{candidate.address ?? 'No address on the listing'} · {candidate.type ?? 'no category'} · {candidate.website ?? 'no website'} · {candidate.phone ?? 'no phone on the listing'}</p>
       {proximity && <p>{proximity.distanceMiles} mi · {proximity.band} (straight-line, DEC-074)</p>}
 
+      {/* DEC-134. The operator's own request: fewer clicks. One decision per
+          business — qualify, compose, and render a demo preview all happen
+          behind "Sí, seguir"; the two DEC-004 gates (publish, outreach) stay
+          separate, explicit steps on their own views, since those are real,
+          irreversible actions this button must never fold into a generic
+          "continue". */}
+      <div className="gate-zone">
+        <h4>¿Seguir con este negocio?</h4>
+        <p className="notice">
+          "Sí, seguir" califica este negocio con el agente (DEC-130) y arma un preview de demo automáticamente — sin
+          botones intermedios. "No, siguiente" lo descarta y vuelve a la lista. Publicar el demo y enviar el mensaje
+          siguen siendo pasos separados con tu aprobación explícita — nada de eso ocurre acá.
+        </p>
+        <div className="button-row">
+          <button onClick={runFullFlow} disabled={flowRunning}>
+            {flowRunning
+              ? flowStage === 'qualifying' ? 'Calificando…' : flowStage === 'composing' ? 'Redactando…' : 'Procesando…'
+              : 'Sí, seguir'}
+          </button>
+          <button className="secondary" onClick={onClear} disabled={flowRunning}>No, siguiente</button>
+        </div>
+        {leadStatus && (
+          <p className="notice">
+            <strong>Estado: {leadStatus.status}.</strong>{' '}
+            {leadStatus.history.length > 0 ? leadStatus.history[leadStatus.history.length - 1]?.detail : 'Sin transiciones registradas aún.'}
+          </p>
+        )}
+        {qualifyResult?.status === 'failed' && (
+          <div className="error" role="alert"><strong>Calificación falló: {qualifyResult.reason}</strong><p>{qualifyResult.detail}</p></div>
+        )}
+        {qualifyResult?.status === 'skipped' && <p className="control-hint">{qualifyResult.reason}</p>}
+        {leadStatus?.status === 'REJECTED' && (
+          <p className="gate">El agente no calificó este negocio — no se generó demo. Podés revisar por qué en el detalle de abajo, o pasar al siguiente.</p>
+        )}
+        {/* DEC-137. FAILED is a dead end for `runFullFlow`/`runQualification`
+            on purpose — an infra failure should not retry itself. This is the
+            operator's own explicit way back in, calling a separate IPC
+            channel that only accepts a FAILED lead. */}
+        {leadStatus?.status === 'FAILED' && (
+          <div className="button-row">
+            <button className="secondary" onClick={retryQualification} disabled={qualifying}>
+              {qualifying ? 'Reintentando…' : 'Reintentar calificación'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* DEC-134. Everything below is unchanged from before this decision —
+          refreshing evidence, capturing a screenshot, checking raw scores,
+          and re-running qualification by hand are all still here for the
+          cases the automatic flow above doesn't cover. It stays plainly
+          visible rather than behind a collapsed `<details>`: this is where
+          the actual evidence lives, and the operator's own request was one
+          button to decide, not that the underlying record become harder to
+          read. */}
       {searchContext && (
         <div className="button-row">
           <button className="secondary" onClick={refreshEvidence} disabled={refreshing}>
@@ -332,12 +609,92 @@ export function ProspectRecord({
         </>
       ) : <p className="notice">No website field on this listing; nothing to capture.</p>}
 
+      {/* DEC-130/DEC-131. Agent-decided qualification — the one narrow DEC-045
+          exception this codebase makes, and only for a lead moving through
+          this automated pipeline; the reputation/web-opportunity scores above
+          remain fully deterministic and unaffected by this. Manual re-run,
+          for when the operator wants to qualify again without also
+          regenerating the demo (`runFullFlow` above does both together). */}
+      <div className="button-row">
+        <button className="secondary" onClick={checkLeadStatus}>Check status</button>
+        <button className="secondary" onClick={runQualification} disabled={qualifying || !candidate.dataId}>
+          {qualifying ? 'Qualifying…' : 'Run qualification only'}
+        </button>
+      </div>
+
       </>)}
 
       {section === 'demonstration' && (<>
       <h4>Demonstration preview</h4>
       <p className="notice">Builds a single-page HTML preview from only the verified fields already shown above (DEC-005) — never published, never sent anywhere, not the DEC-004 approval gate. Missing fields render as a labelled placeholder, not a guess.</p>
+
+      {/* DEC-129. Optional, explicit, and read before the preview is ever
+          built — running this does not by itself change what is on screen;
+          "Generate demonstration preview" below has to be pressed again
+          (or re-pressed) to pick up its output. */}
+      <div className="gate-zone">
+        <h4>Compose with agent (experimental)</h4>
+        <details className="explainer">
+          <summary>What this does</summary>
+          <p className="notice">
+            Runs the concept composer (a bounded, read-only Claude Code task, same boundary as the opportunity analyst
+            — AGENT_ARCHITECTURE.md) once over this prospect's own already-retrieved evidence. It decides which of
+            "about," "reviews," "services," and "hours" to show and in what order, drafts a short about paragraph,
+            and picks real review sentences to quote verbatim — citing the evidence behind every quote. It never
+            writes HTML or CSS, invents a fact, or publishes anything; the deterministic preview below still renders
+            every line, and a section it asks for still only appears if the underlying data actually exists.
+          </p>
+        </details>
+        <label className="confirm-spend">
+          <input type="checkbox" checked={composerConfirmed} onChange={(event) => setComposerConfirmed(event.target.checked)} />
+          {' '}I understand this runs a local Claude Code task using this Claude subscription's own usage limit — not a SerpApi or PageSpeed credit.
+        </label>
+        <button
+          className="secondary"
+          onClick={composeWithAgent}
+          disabled={!composerConfirmed || composing || evidenceReferences.length === 0}
+        >
+          {composing ? 'Composing…' : 'Compose with agent'}
+        </button>
+        {!composerConfirmed && <p className="control-hint">Blocked: acknowledge the usage cost above before this can be used.</p>}
+        {evidenceReferences.length === 0 && <p className="control-hint">No retained evidence for this prospect yet — nothing for the composer to read.</p>}
+        {composerResult?.status === 'failed' && (
+          <div className="error" role="alert"><strong>Compose failed: {composerResult.reason}</strong><p>{composerResult.detail}</p></div>
+        )}
+        {composerResult?.status === 'awaiting_operator_review' && (
+          <div className="notice">
+            <p><strong>Composed — review below, then press "Generate demonstration preview" to render it.</strong></p>
+            <p>Sections: {composerResult.output.sectionOrder.join(', ') || '(none)'} · Tone: {composerResult.output.tone}</p>
+            <p className="control-hint">Why: {composerResult.rationale}</p>
+          </div>
+        )}
+      </div>
+
       <button className="secondary" onClick={generateDemoPreview}>Generate demonstration preview (not published, DEC-079)</button>
+      {/* DEC-140. What the automated QA loop found, stated before the preview
+          rather than after it — the operator should know whether the page
+          below passed its checks before they start reading it. */}
+      {demoQa && (
+        <div className={demoQa.status === 'qa_passed' ? 'notice' : 'error'} role={demoQa.status === 'qa_failed' ? 'alert' : undefined}>
+          <strong>
+            {demoQa.status === 'qa_passed'
+              ? `Passed the anti-pattern detector and QA review on attempt ${demoQa.attempts.length} of ${demoQa.attempts.length}.`
+              : 'Did not pass automated QA.'}
+          </strong>
+          {demoQa.status === 'qa_failed' && <p>{demoQa.reason}</p>}
+          <ul>
+            {demoQa.attempts.map((attempt) => (
+              <li key={attempt.attempt}>
+                Attempt {attempt.attempt}: {attempt.outcome.replaceAll('_', ' ')}
+                {[...attempt.detectorFindings, ...attempt.agentIssues].length > 0 && ` — ${[...attempt.detectorFindings, ...attempt.agentIssues].join(' ')}`}
+              </li>
+            ))}
+          </ul>
+          <p className="control-hint">
+            Automated QA is a pre-filter, not an approval. Publishing is still your own decision at the gate below (DEC-004).
+          </p>
+        </div>
+      )}
       {demoPreview && (
         <>
           {demoPreview.missingFields.length > 0 && (

@@ -5,7 +5,47 @@ import { assessProximity, type Coordinates } from '../domain/proximity'
 import { buildShortlist, type ShortlistCandidateInput } from '../domain/shortlist'
 import { CandidateScoreAction, CandidateWebOpportunityAction } from './CandidateActions'
 import { isJudgmentPending } from './candidate-scoring'
-import type { CandidateSummary, RestoredReviewHistory, RestoredWebOpportunityMeasurement } from './types'
+import type { AnalystRunResult, CandidateSummary, RestoredReviewHistory, RestoredWebOpportunityMeasurement } from './types'
+
+/**
+ * DEC-127's follow-up. The agent analyst's output, read-only, next to the
+ * deterministic score it never influences. `AGENT_ARCHITECTURE.md` §5: the
+ * analyst computes no score and proposes no contact — this renders exactly
+ * what it reported, nothing it implies should happen next.
+ */
+function AnalystNotes({ result }: { result: AnalystRunResult }) {
+  if (result.status === 'failed') {
+    return (
+      <p className="shortlist-analyst-note shortlist-analyst-note-failed">
+        Agent analyst: run failed ({result.reason}) — {result.detail}
+      </p>
+    )
+  }
+  const { observations, proposedForReview, missingInformation } = result.output
+  if (observations.length === 0 && proposedForReview.length === 0 && missingInformation.length === 0) {
+    return <p className="shortlist-analyst-note">Agent analyst: no observations reported.</p>
+  }
+  return (
+    <div className="shortlist-analyst-note">
+      <p className="shortlist-analyst-label">Agent analyst — unverified, evidence-cited draft:</p>
+      {proposedForReview.length > 0 && (
+        <ul className="shortlist-analyst-list">
+          {proposedForReview.map((p, i) => <li key={`proposed-${i}`}><strong>Proposes review:</strong> {p.rationale}</li>)}
+        </ul>
+      )}
+      {observations.length > 0 && (
+        <ul className="shortlist-analyst-list">
+          {observations.map((o, i) => (
+            <li key={`obs-${i}`}><span className={`kind-${o.kind}`}>{o.kind === 'insufficient_data' ? 'insufficient data' : 'observed'}</span> {o.signal}</li>
+          ))}
+        </ul>
+      )}
+      {missingInformation.length > 0 && (
+        <p className="shortlist-analyst-missing">Missing: {missingInformation.join('; ')}</p>
+      )}
+    </div>
+  )
+}
 
 /**
  * DEC-075. Ranks only candidates that already have all three real inputs —
@@ -25,6 +65,13 @@ import type { CandidateSummary, RestoredReviewHistory, RestoredWebOpportunityMea
  * Search view and scrolled to the candidate — the operator's own report was
  * that jumping views read as "sends me back to search" and lost their place
  * on the Shortlist; expanding in place keeps them where they are.
+ *
+ * DEC-091/DEC-093. No "Select as prospect" route exists on an excluded card,
+ * on purpose: `tests/interface-wiring.test.tsx`'s DEC-093 mutation pass
+ * explicitly tried adding one and it was caught as the exact defect DEC-091
+ * closed — a route to the prospect record, demonstration, and both DEC-004
+ * gates that bypasses actual qualification. Do not add one here without
+ * reading both decisions first.
  */
 const EXCLUSION_TEXT: Record<string, string> = {
   reputation_not_assessed: 'reputation not assessed yet — no review history has been retrieved for this listing',
@@ -54,6 +101,8 @@ export function ShortlistView({
   onScored = () => {},
   onMeasured = () => {},
   onQualified,
+  onClearAll,
+  analystResults = {},
 }: {
   candidates: readonly CandidateSummary[]
   scores: Record<string, ReputationScore>
@@ -69,6 +118,10 @@ export function ShortlistView({
   onMeasured?: (id: string, audit: WebOpportunityAudit) => void
   /** DEC-113. Fired when recording a judgment in place is what qualifies this candidate. */
   onQualified?: (dataId: string) => void
+  /** DEC-126. Clears every candidate shown here from the list at once — a display filter only, same as the per-candidate "Remove" button on the Search view already writes to. */
+  onClearAll?: () => void
+  /** DEC-128. The agent analyst's output for candidates the operator ran it against, keyed the same as `scores`/`audits`. */
+  analystResults?: Record<string, AnalystRunResult>
 }) {
   // DEC-112. Which "not yet rankable" card, if any, has its score/judgment
   // controls expanded. Only one at a time — this is a focused task, not a
@@ -101,9 +154,27 @@ export function ShortlistView({
     (a, b) => (b.candidate.reputationScoreLowerBound ?? -Infinity) - (a.candidate.reputationScoreLowerBound ?? -Infinity),
   )
 
+  const totalShown = shortlist.ranked.length + shortlist.excluded.length
+
   return (
     <div className="shortlist-view">
-      <h3>Shortlist ({shortlist.ranked.length} ranked, {shortlist.excluded.length} not yet rankable)</h3>
+      <div className="shortlist-heading-row">
+        <h3>Shortlist ({shortlist.ranked.length} ranked, {shortlist.excluded.length} not yet rankable)</h3>
+        {/* DEC-126. The operator's own request: one button to clear the whole
+            list at once, rather than removing candidates one at a time. Same
+            as "Remove," this only hides them from view (DEC-112) — no
+            retained evidence is touched, and "Restore all" on the Search view
+            undoes it. */}
+        {onClearAll && totalShown > 0 && (
+          <button
+            className="secondary"
+            onClick={onClearAll}
+            title="Removes every candidate shown here from this list only — does not delete any retained evidence."
+          >
+            Clear all
+          </button>
+        )}
+      </div>
       {shortlist.ranked.length === 0 && (
         <p className="notice">
           No candidate is ranked yet — score reputation and web opportunity for at least one candidate on the Search
@@ -123,6 +194,7 @@ export function ShortlistView({
                 <span>web-opportunity {entry.webOpportunityScoreLowerBound?.toFixed(1)}</span>
                 <span>reputation {entry.reputationScoreLowerBound?.toFixed(1)}</span>
               </div>
+              {analystResults[entry.id] && <AnalystNotes result={analystResults[entry.id]} />}
               {selectedProspectId === entry.id
                 ? <strong className="shortlist-selected">Selected as prospect</strong>
                 : <button className="secondary" onClick={() => onSelect(entry.id)}>Select as prospect</button>}
@@ -159,6 +231,7 @@ export function ShortlistView({
                       tooltip, so it is still readable and still what
                       "evidence over scores" (CLAUDE.md) means in practice. */}
                   <p className="shortlist-reason-detail">{EXCLUSION_TEXT[exclusion.reason]}</p>
+                  {analystResults[exclusion.candidate.id] && <AnalystNotes result={analystResults[exclusion.candidate.id]} />}
                   {candidate && (
                     <button className="secondary" onClick={() => setExpandedId(isExpanded ? null : exclusion.candidate.id)}>
                       {isExpanded ? 'Hide' : 'Review →'}

@@ -815,6 +815,17 @@ input[type='checkbox'] {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* DEC-126. Puts "Clear all" next to the heading it acts on, rather than
+ * buried in the list below — the same reasoning as any other list-level
+ * control in this interface. */
+.shortlist-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 /* DEC-112. Replaces a wall of one-line-per-candidate text with clickable
  * cards — the operator's own complaint about the Shortlist view. */
 .shortlist-cards {
@@ -883,6 +894,57 @@ input[type='checkbox'] {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--step--1);
+}
+
+/* DEC-128. The agent analyst's own notes, rendered next to the deterministic
+ * score it never influences (AGENT_ARCHITECTURE.md §5) — visually distinct
+ * (dashed border, muted) so it reads as an unverified draft, not part of the
+ * score itself. */
+.shortlist-analyst-note {
+  flex-basis: 100%;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: var(--step--1);
+  color: var(--text-secondary);
+}
+
+.shortlist-analyst-note-failed {
+  border-style: solid;
+  border-color: var(--accent-blocked);
+  color: var(--text-muted);
+}
+
+.shortlist-analyst-label {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shortlist-analyst-list {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+}
+
+.shortlist-analyst-list li {
+  margin-bottom: var(--space-1);
+}
+
+.shortlist-analyst-list .kind-observed {
+  color: var(--text-secondary);
+}
+
+.shortlist-analyst-list .kind-insufficient_data {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.shortlist-analyst-missing {
+  margin: 0;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* DEC-112. The score/judgment controls, expanded in place under a "not yet
